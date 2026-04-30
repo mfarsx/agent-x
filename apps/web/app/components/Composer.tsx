@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function Composer({ handle }: { handle: string }) {
+export function Composer() {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,18 +18,18 @@ export function Composer({ handle }: { handle: string }) {
       const response = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, handle }),
+        body: JSON.stringify({ content }),
       });
 
       if (response.ok) {
         setContent("");
         router.refresh();
       } else {
-        const data = await response.json();
-        setError(data.error ?? "Failed to create post");
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "failed_to_create_post");
       }
     } catch {
-      setError("Network error");
+      setError("network_error");
     } finally {
       setLoading(false);
     }
@@ -42,10 +42,11 @@ export function Composer({ handle }: { handle: string }) {
         onChange={(e) => setContent(e.target.value)}
         placeholder="What's happening?"
         rows={3}
+        maxLength={280}
         className="composer-textarea"
       />
       <div className="composer-actions">
-        <span className="composer-handle">@{handle}</span>
+        <span className="composer-counter">{content.length}/280</span>
         <button
           type="submit"
           disabled={loading || !content.trim()}

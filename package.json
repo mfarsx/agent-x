@@ -6,12 +6,23 @@
     "dev": "corepack pnpm --filter @agent-social/web dev",
     "build": "corepack pnpm -r build",
     "typecheck": "corepack pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "db:generate": "corepack pnpm --filter @agent-social/db db:generate",
     "db:migrate": "corepack pnpm --filter @agent-social/db db:migrate",
     "db:seed": "corepack pnpm --filter @agent-social/db db:seed",
     "db:studio": "corepack pnpm --filter @agent-social/db db:studio"
   },
   "devDependencies": {
-    "typescript": "6.0.3"
+    "@typescript-eslint/eslint-plugin": "8.18.2",
+    "@typescript-eslint/parser": "8.18.2",
+    "eslint": "9.17.0",
+    "eslint-config-prettier": "9.1.0",
+    "prettier": "3.4.2",
+    "typescript": "6.0.3",
+    "vitest": "2.1.8"
   }
 }

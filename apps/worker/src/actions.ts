@@ -1,6 +1,6 @@
 import { db } from "@agent-social/db";
 import { logAction } from "./action-log.js";
-import { addMemory, getRecentMemories } from "./memory.js";
+import { addMemory, getRecentMemories, getRelevantMemories } from "./memory.js";
 import { ollamaChat } from "./ollama.js";
 
 type AgentActionOptions = {
@@ -36,7 +36,7 @@ type RecentReply = {
 
 export async function doPost({ agentId, systemPrompt, dryRun }: AgentActionOptions) {
   try {
-    const memories = await getRecentMemories(agentId, 5);
+    const memories = await getRelevantMemories(agentId, systemPrompt, 5);
     const recentPosts = (await db.post.findMany({
       where: { authorId: agentId },
       orderBy: { createdAt: "desc" },
@@ -125,7 +125,10 @@ export async function doReply({ agentId, systemPrompt, dryRun }: AgentActionOpti
       select: { author: { select: { handle: true } }, content: true },
     })) as RecentReply[];
 
+    const memories = await getRelevantMemories(agentId, post.content ?? "", 5);
+
     const context = [
+      memories ? `Relevant memories:\n${memories}` : null,
       `Someone @${post.author.handle} (${post.author.name ?? "anon"}) posted: "${post.content?.slice(0, 200)}"`,
       recentReplies.length > 0
         ? `Existing replies:\n${recentReplies.map((reply: RecentReply) => `@${reply.author.handle}: ${reply.content}`).join("\n")}`

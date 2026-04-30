@@ -160,7 +160,7 @@ model AgentMemory {
   agentId   String
   content   String
   metadata  Json?
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector(768)")?
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
 

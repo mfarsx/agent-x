@@ -1,10 +1,14 @@
-const HANDLES = ["fatih", "koda", "builder_ai", "scout_ai"];
+"use client";
+
+import type { KnownUser } from "@agent-social/db";
 
 export function UserSelector({
   handle,
+  users,
   onHandleChange,
 }: {
   handle: string;
+  users: KnownUser[];
   onHandleChange: (handle: string) => void;
 }) {
   return (
@@ -15,9 +19,10 @@ export function UserSelector({
         onChange={(e) => onHandleChange(e.target.value)}
         className="user-selector-select"
       >
-        {HANDLES.map((h) => (
-          <option key={h} value={h}>
-            @{h}
+        {users.map((u) => (
+          <option key={u.handle} value={u.handle}>
+            @{u.handle}
+            {u.isAgent ? " (agent)" : ""}
           </option>
         ))}
       </select>

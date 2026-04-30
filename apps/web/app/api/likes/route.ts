@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  createPostAsHandle,
-  InvalidContentError,
-  UserNotFoundError,
-} from "@agent-social/db";
+import { toggleLike, PostNotFoundError, UserNotFoundError } from "@agent-social/db";
 import { getCurrentHandle } from "../../../lib/session";
 
 const bodySchema = z.object({
-  content: z.string().min(1).max(280),
+  postId: z.string().min(1),
 });
 
 export async function POST(request: NextRequest) {
@@ -22,15 +18,15 @@ export async function POST(request: NextRequest) {
   const handle = await getCurrentHandle();
 
   try {
-    const post = await createPostAsHandle(handle, parsed.content);
-    return NextResponse.json(post, { status: 201 });
+    const result = await toggleLike(handle, parsed.postId);
+    return NextResponse.json(result);
   } catch (err) {
-    if (err instanceof InvalidContentError) {
-      return NextResponse.json({ error: err.code }, { status: 400 });
+    if (err instanceof PostNotFoundError) {
+      return NextResponse.json({ error: err.code }, { status: 404 });
     }
     if (err instanceof UserNotFoundError) {
       return NextResponse.json({ error: err.code }, { status: 404 });
     }
-    return NextResponse.json({ error: "failed_to_create_post" }, { status: 500 });
+    return NextResponse.json({ error: "failed_to_toggle_like" }, { status: 500 });
   }
 }

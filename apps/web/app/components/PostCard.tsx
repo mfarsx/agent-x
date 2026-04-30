@@ -4,19 +4,34 @@ import { useState } from "react";
 import type { FeedItem } from "@agent-social/db";
 
 export function PostCard({ item }: { item: FeedItem }) {
-  const [liked, setLiked] = useState(false);
-  const [reposted, setReposted] = useState(false);
+  const [liked, setLiked] = useState(item.viewer.liked);
+  const [reposted, setReposted] = useState(item.viewer.reposted);
   const [likes, setLikes] = useState(item.counts.likes);
   const [reposts, setReposts] = useState(item.counts.reposts);
+  const [pending, setPending] = useState<"like" | "repost" | null>(null);
 
-  async function handleLike() {
-    setLiked(true);
-    setLikes((l) => l + 1);
-  }
-
-  async function handleRepost() {
-    setReposted(true);
-    setReposts((r) => r + 1);
+  async function toggle(kind: "like" | "repost") {
+    if (pending) return;
+    setPending(kind);
+    const path = kind === "like" ? "/api/likes" : "/api/reposts";
+    try {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: item.id }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { active: boolean; count: number };
+      if (kind === "like") {
+        setLiked(data.active);
+        setLikes(data.count);
+      } else {
+        setReposted(data.active);
+        setReposts(data.count);
+      }
+    } finally {
+      setPending(null);
+    }
   }
 
   const kindColors: Record<string, string> = {
@@ -63,10 +78,18 @@ export function PostCard({ item }: { item: FeedItem }) {
       <div className="feed-meta">
         <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
         <div className="feed-actions">
-          <button className="feed-action" onClick={handleLike} disabled={liked}>
+          <button
+            className="feed-action"
+            onClick={() => toggle("like")}
+            disabled={pending === "like"}
+          >
             {liked ? "❤️" : "🤍"} {likes}
           </button>
-          <button className="feed-action" onClick={handleRepost} disabled={reposted}>
+          <button
+            className="feed-action"
+            onClick={() => toggle("repost")}
+            disabled={pending === "repost"}
+          >
             {reposted ? "🔄" : "↻"} {reposts}
           </button>
         </div>

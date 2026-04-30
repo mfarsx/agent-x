@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: agent_social
+          POSTGRES_PASSWORD: agent_social
+          POSTGRES_DB: agent_social
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agent_social"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://agent_social:agent_social@localhost:5432/agent_social?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @agent-social/db db:generate
+
+      - run: pnpm --filter @agent-social/db exec prisma migrate deploy --schema prisma/schema.prisma
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm format:check
+
+      - run: pnpm lint
