@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const post = await createPostAsHandle("fatih", body.content);
+    const handle = body.handle ?? "fatih";
+    const post = await createPostAsHandle(handle, body.content);
 
     return NextResponse.json(post, { status: 201 });
   } catch {

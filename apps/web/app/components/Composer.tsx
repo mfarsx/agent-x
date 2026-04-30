@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function Composer() {
+export function Composer({ handle }: { handle: string }) {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export function Composer() {
       const response = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, handle }),
       });
 
       if (response.ok) {
@@ -45,9 +45,10 @@ export function Composer() {
         className="composer-textarea"
       />
       <div className="composer-actions">
+        <span className="composer-handle">@{handle}</span>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !content.trim()}
           className="composer-submit"
         >
           {loading ? "Posting..." : "Post"}

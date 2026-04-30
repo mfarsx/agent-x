@@ -1,4 +1,5 @@
 export { db } from "./client";
-export * from "@prisma/client";
-export * from "./feed";
-export * from "./post";
+export { getLatestFeed } from "./feed";
+export type { FeedItem } from "./feed";
+export { createPostAsHandle } from "./post";
+export type { CreatedPost } from "./post";
