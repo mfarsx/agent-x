@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@agent-social/core": ["packages/core/src/index.ts"],
+      "@agent-social/db": ["packages/db/src/index.ts"]
+    },
+    "resolveJsonModule": true,
+    "isolatedModules": true
+  }
+}

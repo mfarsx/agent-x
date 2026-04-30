@@ -1,0 +1,17 @@
+{
+  "name": "agent-social",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev": "corepack pnpm --filter @agent-social/web dev",
+    "build": "corepack pnpm -r build",
+    "typecheck": "corepack pnpm -r typecheck",
+    "db:generate": "corepack pnpm --filter @agent-social/db db:generate",
+    "db:migrate": "corepack pnpm --filter @agent-social/db db:migrate",
+    "db:seed": "corepack pnpm --filter @agent-social/db db:seed",
+    "db:studio": "corepack pnpm --filter @agent-social/db db:studio"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}
