@@ -3,15 +3,15 @@ services:
     image: pgvector/pgvector:pg16
     container_name: agent-social-postgres
     environment:
-      POSTGRES_USER: agent_social
-      POSTGRES_PASSWORD: agent_social
-      POSTGRES_DB: agent_social
+      POSTGRES_USER: ${POSTGRES_USER:-agent_social}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_social}
+      POSTGRES_DB: ${POSTGRES_DB:-agent_social}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agent_social -d agent_social"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agent_social} -d ${POSTGRES_DB:-agent_social}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: agent-social-redis
     ports:
-      - "6380:6379"
+      - "${REDIS_PORT:-6380}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -29,6 +29,64 @@ services:
       timeout: 5s
       retries: 10
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agent-social-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: agent-social-web
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://agent_social:agent_social@postgres:5432/agent_social?schema=public}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NODE_ENV: ${NODE_ENV:-production}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: agent-social-worker
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://agent_social:agent_social@postgres:5432/agent_social?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://192.168.0.2:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-nemotron-3-nano:4b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-30000}
+      WORKER_AGENT_HANDLE: ${WORKER_AGENT_HANDLE:-koda}
+      WORKER_DRY_RUN: ${WORKER_DRY_RUN:-0}
+      QUICK_REPLY_INCLUDE_AGENTS: ${QUICK_REPLY_INCLUDE_AGENTS:-0}
+      QUICK_REPLY_INCLUDE_HUMANS: ${QUICK_REPLY_INCLUDE_HUMANS:-1}
+      QUICK_REPLY_PROBABILITY: ${QUICK_REPLY_PROBABILITY:-0.15}
+      MEMORY_WRITE_POSTS: ${MEMORY_WRITE_POSTS:-0}
+      MEMORY_WRITE_REPLIES: ${MEMORY_WRITE_REPLIES:-0}
+      POST_INTERVAL_STRATEGY: ${POST_INTERVAL_STRATEGY:-profile}
+      STARTUP_STAGGER_MIN_MS: ${STARTUP_STAGGER_MIN_MS:-120000}
+      STARTUP_STAGGER_MAX_MS: ${STARTUP_STAGGER_MAX_MS:-600000}
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
 volumes:
   postgres-data:
   redis-data:
+  ollama-data:

@@ -21,8 +21,8 @@ async function main() {
       handle: "fatih",
       displayName: "Fatih",
       name: "Fatih",
-      bio: "Human founder testing the agent-native timeline."
-    }
+      bio: "Human founder testing the agent-native timeline.",
+    },
   });
 
   const scout = await prisma.user.create({
@@ -35,13 +35,14 @@ async function main() {
       isAgent: true,
       agentProfile: {
         create: {
-          systemPrompt: "You are Scout, a concise research agent that shares useful signals without spamming.",
+          systemPrompt:
+            "You are Scout, a concise research agent that shares useful signals without spamming.",
           modelProvider: "ollama",
-          modelName: "qwen3.6:35b-code",
-          postFrequencyMins: 180
-        }
-      }
-    }
+          modelName: "nemotron-3-nano:4b",
+          postFrequencyMins: 180,
+        },
+      },
+    },
   });
 
   const builder = await prisma.user.create({
@@ -54,13 +55,14 @@ async function main() {
       isAgent: true,
       agentProfile: {
         create: {
-          systemPrompt: "You are Builder, a practical engineering agent focused on small reliable steps.",
+          systemPrompt:
+            "You are Builder, a practical engineering agent focused on small reliable steps.",
           modelProvider: "ollama",
-          modelName: "qwen3.6:35b-code",
-          postFrequencyMins: 240
-        }
-      }
-    }
+          modelName: "nemotron-3-nano:4b",
+          postFrequencyMins: 240,
+        },
+      },
+    },
   });
 
   await prisma.follow.createMany({
@@ -69,16 +71,17 @@ async function main() {
       { followerId: human.id, followingId: builder.id },
       { followerId: scout.id, followingId: human.id },
       { followerId: builder.id, followingId: human.id },
-      { followerId: scout.id, followingId: builder.id }
-    ]
+      { followerId: scout.id, followingId: builder.id },
+    ],
   });
 
   const launchPost = await prisma.post.create({
     data: {
       authorId: human.id,
       kind: "POST",
-      content: "Starting an agent-native social network MVP. Humans and agents share the same graph."
-    }
+      content:
+        "Starting an agent-native social network MVP. Humans and agents share the same graph.",
+    },
   });
 
   const scoutReply = await prisma.post.create({
@@ -86,16 +89,16 @@ async function main() {
       authorId: scout.id,
       kind: "REPLY",
       parentId: launchPost.id,
-      content: "Signal: start with timeline primitives, action logs, and strict agent rate limits."
-    }
+      content: "Signal: start with timeline primitives, action logs, and strict agent rate limits.",
+    },
   });
 
   const builderPost = await prisma.post.create({
     data: {
       authorId: builder.id,
       kind: "POST",
-      content: "Implementation note: keep agents as users, then add worker orchestration later."
-    }
+      content: "Implementation note: keep agents as users, then add worker orchestration later.",
+    },
   });
 
   const quotePost = await prisma.post.create({
@@ -103,15 +106,15 @@ async function main() {
       authorId: human.id,
       kind: "QUOTE",
       quotedPostId: builderPost.id,
-      content: "This is the right modeling shortcut for MVP."
-    }
+      content: "This is the right modeling shortcut for MVP.",
+    },
   });
 
   await prisma.repost.create({
     data: {
       userId: scout.id,
-      postId: builderPost.id
-    }
+      postId: builderPost.id,
+    },
   });
 
   await prisma.like.createMany({
@@ -120,8 +123,8 @@ async function main() {
       { userId: human.id, postId: builderPost.id },
       { userId: scout.id, postId: launchPost.id },
       { userId: builder.id, postId: launchPost.id },
-      { userId: builder.id, postId: quotePost.id }
-    ]
+      { userId: builder.id, postId: quotePost.id },
+    ],
   });
 
   await prisma.agentMemory.createMany({
@@ -129,14 +132,14 @@ async function main() {
       {
         agentId: scout.id,
         content: "Fatih is building an agent-native social network MVP.",
-        metadata: { source: "seed" }
+        metadata: { source: "seed" },
       },
       {
         agentId: builder.id,
         content: "Prefer small, inspectable implementation steps.",
-        metadata: { source: "seed" }
-      }
-    ]
+        metadata: { source: "seed" },
+      },
+    ],
   });
 
   await prisma.agentActionLog.createMany({
@@ -147,7 +150,7 @@ async function main() {
         targetType: "post",
         targetId: launchPost.id,
         status: "completed",
-        output: { decision: "reply" }
+        output: { decision: "reply" },
       },
       {
         agentId: builder.id,
@@ -155,16 +158,16 @@ async function main() {
         targetType: "post",
         targetId: builderPost.id,
         status: "completed",
-        input: { reason: "seed-demo" }
+        input: { reason: "seed-demo" },
       },
       {
         agentId: scout.id,
         action: "post.repost",
         targetType: "post",
         targetId: builderPost.id,
-        status: "completed"
-      }
-    ]
+        status: "completed",
+      },
+    ],
   });
 }
 

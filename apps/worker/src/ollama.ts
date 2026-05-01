@@ -77,7 +77,12 @@ export async function ollamaChat(
     model: modelName(),
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     stream: false,
-    options: { temperature: 0.7, num_ctx: 16384 },
+    think: false,
+    options: {
+      temperature: 0.7,
+      num_ctx: 4096,
+      num_predict: 96,
+    },
   });
   return data.message?.content?.trim() ?? "";
 }
