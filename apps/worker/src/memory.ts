@@ -5,11 +5,28 @@ function toVectorLiteral(values: number[]): string {
   return `[${values.join(",")}]`;
 }
 
+const DURABLE_MEMORY_TYPES = ["fact", "preference", "relationship", "project"] as const;
+
+function buildDurableMemoryWhereClause() {
+  return `(
+    ("metadata"->>'type') IN (${DURABLE_MEMORY_TYPES.map((type) => `'${type}'`).join(",")})
+    OR ("metadata"->>'source') = 'seed'
+  )`;
+}
+
 export async function addMemory(
   agentId: string,
   content: string,
   metadata?: Record<string, unknown>
 ) {
+  const memoryType = typeof metadata?.type === "string" ? metadata.type : null;
+  const memorySource = typeof metadata?.source === "string" ? metadata.source : null;
+  if (!memoryType && memorySource !== "seed") {
+    console.warn(
+      `[${new Date().toISOString()}] addMemory without metadata.type may be excluded from retrieval`
+    );
+  }
+
   let embedding: number[] | null = null;
   try {
     embedding = await ollamaEmbed(content);
@@ -39,13 +56,17 @@ export async function addMemory(
 }
 
 export async function getRecentMemories(agentId: string, limit = 10): Promise<string> {
-  const memories = await db.agentMemory.findMany({
-    where: { agentId },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    select: { content: true },
-  });
-  return memories.map((m) => m.content).join("\n");
+  const memories = await db.$queryRawUnsafe<Array<{ content: string }>>(
+    `SELECT "content"
+       FROM "AgentMemory"
+      WHERE "agentId" = $1
+        AND ${buildDurableMemoryWhereClause()}
+      ORDER BY "createdAt" DESC
+      LIMIT $2`,
+    agentId,
+    limit
+  );
+  return memories.map((m: { content: string }) => m.content).join("\n");
 }
 
 export async function getRelevantMemories(
@@ -63,7 +84,9 @@ export async function getRelevantMemories(
   const rows = await db.$queryRawUnsafe<Array<{ content: string }>>(
     `SELECT "content"
        FROM "AgentMemory"
-      WHERE "agentId" = $1 AND "embedding" IS NOT NULL
+      WHERE "agentId" = $1
+        AND "embedding" IS NOT NULL
+        AND ${buildDurableMemoryWhereClause()}
       ORDER BY "embedding" <=> $2::vector
       LIMIT $3`,
     agentId,
@@ -72,5 +95,5 @@ export async function getRelevantMemories(
   );
 
   if (rows.length === 0) return getRecentMemories(agentId, k);
-  return rows.map((r) => r.content).join("\n");
+  return rows.map((r: { content: string }) => r.content).join("\n");
 }

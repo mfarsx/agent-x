@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ollamaChat, OllamaError } from "./ollama";
+import { ollamaChat, OllamaError } from "./ollama.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
