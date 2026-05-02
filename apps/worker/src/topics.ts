@@ -105,7 +105,7 @@ function inferRecentTopics(recentPosts: string[]): Set<string> {
 export function pickTopicForAgent(
   handle: string | null | undefined,
   recentPosts: string[],
-  excludedTopics: string[] = []
+  excludedTopics: string[] = [],
 ): string {
   const pool = getPoolForHandle(handle);
   const recentTopics = inferRecentTopics(recentPosts);
@@ -121,7 +121,7 @@ export function pickTopicForAgent(
 
 export function extractOverusedTerms(
   recentTexts: string[],
-  opts: { minCount?: number; maxTerms?: number } = {}
+  opts: { minCount?: number; maxTerms?: number } = {},
 ): string[] {
   const minCount = opts.minCount ?? 2;
   const maxTerms = opts.maxTerms ?? 10;
@@ -149,7 +149,9 @@ export function buildPostPrompt(input: {
   persona?: string | null;
   retryHint?: string;
 }): string {
-  const personaLabel = input.persona ? `Persona handle: ${input.persona}` : "Persona handle: unknown";
+  const personaLabel = input.persona
+    ? `Persona handle: ${input.persona}`
+    : "Persona handle: unknown";
   const recentContext =
     input.recentPosts.length > 0
       ? `Recent posts (avoid repeating these):\n${input.recentPosts.map((post) => `- ${post.slice(0, 220)}`).join("\n")}`

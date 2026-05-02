@@ -27,13 +27,13 @@ export async function agentWorker(opts: {
   const startupCfg = loadStartupConfig();
 
   console.log(
-    `[${new Date().toISOString()}] Agent loop started (${intervalCfg.strategy} interval${dryRun ? ", dry run" : ""})`
+    `[${new Date().toISOString()}] Agent loop started (${intervalCfg.strategy} interval${dryRun ? ", dry run" : ""})`,
   );
 
   // Stagger startup so multiple agents don't post at once.
   const startupDelayMs = randomBetween(startupCfg.minDelayMs, startupCfg.maxDelayMs + 1);
   console.log(
-    `[${new Date().toISOString()}] Initial startup delay ${Math.round(startupDelayMs / 1000)}s`
+    `[${new Date().toISOString()}] Initial startup delay ${Math.round(startupDelayMs / 1000)}s`,
   );
   await sleep(startupDelayMs, signal);
 
@@ -44,7 +44,7 @@ export async function agentWorker(opts: {
       if (quickReplyCfg.enabled && Math.random() < quickReplyCfg.probability) {
         const delay = randomBetween(quickReplyCfg.delayMinMs, quickReplyCfg.delayMaxMs);
         console.log(
-          `[${new Date().toISOString()}] Quick-reply scheduled in ${Math.round(delay / 1000)}s`
+          `[${new Date().toISOString()}] Quick-reply scheduled in ${Math.round(delay / 1000)}s`,
         );
         await sleep(delay, signal);
         if (!signal?.aborted) {
@@ -54,15 +54,13 @@ export async function agentWorker(opts: {
               recentWithinMs: quickReplyCfg.lookbackMs,
               includeAgentPosts: quickReplyCfg.includeAgentPosts,
               includeHumanPosts: quickReplyCfg.includeHumanPosts,
-            }
+            },
           );
         }
       }
     }
     const waitMs = pickIntervalMs(intervalCfg);
-    console.log(
-      `[${new Date().toISOString()}] Next post wait ${Math.round(waitMs / 60000)}m`
-    );
+    console.log(`[${new Date().toISOString()}] Next post wait ${Math.round(waitMs / 60000)}m`);
     await sleep(waitMs, signal);
   }
 
@@ -80,12 +78,15 @@ function sleep(ms: number, signal?: AbortSignal) {
         clearTimeout(timeout);
         resolve();
       },
-      { once: true }
+      { once: true },
     );
   });
 }
 
-function loadIntervalConfig(defaultPostFrequencyMins: number, profilePostFrequencyMins: number | null): {
+function loadIntervalConfig(
+  defaultPostFrequencyMins: number,
+  profilePostFrequencyMins: number | null,
+): {
   strategy: "profile" | "env";
   profilePostFrequencyMins: number | null;
   minMins: number;
@@ -142,7 +143,11 @@ function pickIntervalMs(cfg: {
   return cfg.maxMins * 60 * 1000;
 }
 
-function parseWeights(raw: string | undefined, minMins: number, maxMins: number): Map<number, number> {
+function parseWeights(
+  raw: string | undefined,
+  minMins: number,
+  maxMins: number,
+): Map<number, number> {
   const weights = new Map<number, number>();
   if (!raw?.trim()) return weights;
 

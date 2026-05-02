@@ -66,16 +66,12 @@ export function jaccardSimilarity(a: string, b: string): number {
 export function isTooSimilarToRecent(
   draft: string,
   recentTexts: string[],
-  threshold = 0.55
+  threshold = 0.55,
 ): boolean {
   return recentTexts.some((text) => jaccardSimilarity(draft, text) >= threshold);
 }
 
-export function containsOverusedTerms(
-  draft: string,
-  terms: string[],
-  maxHits = 2
-): boolean {
+export function containsOverusedTerms(draft: string, terms: string[], maxHits = 2): boolean {
   const tokenSet = new Set(tokenize(draft));
   let hits = 0;
   for (const term of terms) {

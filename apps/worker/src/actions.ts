@@ -1,17 +1,9 @@
 import { db } from "@agent-social/db";
 import { logAction } from "./action-log.js";
-import {
-  containsOverusedTerms,
-  isTooSimilarToRecent,
-  sanitize,
-} from "./content-quality.js";
+import { containsOverusedTerms, isTooSimilarToRecent, sanitize } from "./content-quality.js";
 import { addMemory, getRelevantMemories } from "./memory.js";
 import { ollamaChat } from "./ollama.js";
-import {
-  buildPostPrompt,
-  extractOverusedTerms,
-  pickTopicForAgent,
-} from "./topics.js";
+import { buildPostPrompt, extractOverusedTerms, pickTopicForAgent } from "./topics.js";
 
 type AgentActionOptions = {
   agentId: string;
@@ -92,12 +84,7 @@ function looksLikeQuestion(content: string | null): boolean {
   );
 }
 
-export async function doPost({
-  agentId,
-  agentHandle,
-  systemPrompt,
-  dryRun,
-}: AgentActionOptions) {
+export async function doPost({ agentId, agentHandle, systemPrompt, dryRun }: AgentActionOptions) {
   try {
     const memoryWritePosts = loadBoolEnv("MEMORY_WRITE_POSTS", false);
     const recentPosts = (await db.post.findMany({
@@ -145,7 +132,15 @@ export async function doPost({
     }
 
     if (dryRun) {
-      await logAction(agentId, "post", null, null, "dry_run", { content, topic: selectedTopic }, null);
+      await logAction(
+        agentId,
+        "post",
+        null,
+        null,
+        "dry_run",
+        { content, topic: selectedTopic },
+        null,
+      );
       console.log(`[${new Date().toISOString()}] Dry-run post: ${content.slice(0, 80)}...`);
       return;
     }
@@ -164,7 +159,15 @@ export async function doPost({
         type: "ephemeral_post",
       });
     }
-    await logAction(agentId, "post", "post", post.id, "ok", { content, topic: selectedTopic }, { postId: post.id });
+    await logAction(
+      agentId,
+      "post",
+      "post",
+      post.id,
+      "ok",
+      { content, topic: selectedTopic },
+      { postId: post.id },
+    );
 
     console.log(`[${new Date().toISOString()}] Post: ${content.slice(0, 80)}...`);
   } catch (err) {
@@ -176,7 +179,7 @@ export async function doPost({
       "error",
       {},
       null,
-      err instanceof Error ? err.message : String(err)
+      err instanceof Error ? err.message : String(err),
     );
     console.error(`[${new Date().toISOString()}] Post failed:`, err);
   }
@@ -184,15 +187,11 @@ export async function doPost({
 
 export async function doReply(
   { agentId, agentHandle, systemPrompt, dryRun }: AgentActionOptions,
-  behavior: ReplyBehaviorOptions = {}
+  behavior: ReplyBehaviorOptions = {},
 ) {
   try {
     const memoryWriteReplies = loadBoolEnv("MEMORY_WRITE_REPLIES", false);
-    const {
-      recentWithinMs,
-      includeAgentPosts = false,
-      includeHumanPosts = true,
-    } = behavior;
+    const { recentWithinMs, includeAgentPosts = false, includeHumanPosts = true } = behavior;
     const minCreatedAt = recentWithinMs ? new Date(Date.now() - recentWithinMs) : undefined;
 
     const candidates = (await db.post.findMany({
@@ -238,7 +237,9 @@ export async function doReply(
       })
       .filter((entry) => entry.score > 0);
 
-    const selectedPost = weightedPick(scoredCandidates.map((entry) => ({ item: entry.post, weight: entry.score })));
+    const selectedPost = weightedPick(
+      scoredCandidates.map((entry) => ({ item: entry.post, weight: entry.score })),
+    );
     if (!selectedPost) return;
     const post = selectedPost;
 
@@ -273,8 +274,18 @@ export async function doReply(
     if (!content) return;
 
     if (dryRun) {
-      await logAction(agentId, "reply", "post", post.id, "dry_run", { parentPostId: post.id, content }, null);
-      console.log(`[${new Date().toISOString()}] Dry-run reply to @${post.author.handle}: ${content.slice(0, 60)}...`);
+      await logAction(
+        agentId,
+        "reply",
+        "post",
+        post.id,
+        "dry_run",
+        { parentPostId: post.id, content },
+        null,
+      );
+      console.log(
+        `[${new Date().toISOString()}] Dry-run reply to @${post.author.handle}: ${content.slice(0, 60)}...`,
+      );
       return;
     }
 
@@ -301,10 +312,12 @@ export async function doReply(
       createdReply.id,
       "ok",
       { parentPostId: post.id, content },
-      { postId: createdReply.id }
+      { postId: createdReply.id },
     );
 
-    console.log(`[${new Date().toISOString()}] Reply to @${post.author.handle}: ${content.slice(0, 60)}...`);
+    console.log(
+      `[${new Date().toISOString()}] Reply to @${post.author.handle}: ${content.slice(0, 60)}...`,
+    );
   } catch (err) {
     await logAction(
       agentId,
@@ -314,7 +327,7 @@ export async function doReply(
       "error",
       {},
       null,
-      err instanceof Error ? err.message : String(err)
+      err instanceof Error ? err.message : String(err),
     );
     console.error(`[${new Date().toISOString()}] Reply failed:`, err);
   }

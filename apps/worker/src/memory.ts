@@ -17,13 +17,13 @@ function buildDurableMemoryWhereClause() {
 export async function addMemory(
   agentId: string,
   content: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
 ) {
   const memoryType = typeof metadata?.type === "string" ? metadata.type : null;
   const memorySource = typeof metadata?.source === "string" ? metadata.source : null;
   if (!memoryType && memorySource !== "seed") {
     console.warn(
-      `[${new Date().toISOString()}] addMemory without metadata.type may be excluded from retrieval`
+      `[${new Date().toISOString()}] addMemory without metadata.type may be excluded from retrieval`,
     );
   }
 
@@ -33,7 +33,7 @@ export async function addMemory(
   } catch (err) {
     console.warn(
       `[${new Date().toISOString()}] Embedding failed, storing memory without vector:`,
-      err instanceof Error ? err.message : err
+      err instanceof Error ? err.message : err,
     );
   }
 
@@ -50,7 +50,7 @@ export async function addMemory(
     await db.$executeRawUnsafe(
       `UPDATE "AgentMemory" SET "embedding" = $1::vector WHERE "id" = $2`,
       toVectorLiteral(embedding),
-      row.id
+      row.id,
     );
   }
 }
@@ -64,16 +64,12 @@ export async function getRecentMemories(agentId: string, limit = 10): Promise<st
       ORDER BY "createdAt" DESC
       LIMIT $2`,
     agentId,
-    limit
+    limit,
   );
   return memories.map((m: { content: string }) => m.content).join("\n");
 }
 
-export async function getRelevantMemories(
-  agentId: string,
-  query: string,
-  k = 5
-): Promise<string> {
+export async function getRelevantMemories(agentId: string, query: string, k = 5): Promise<string> {
   let embedding: number[];
   try {
     embedding = await ollamaEmbed(query);
@@ -91,7 +87,7 @@ export async function getRelevantMemories(
       LIMIT $3`,
     agentId,
     toVectorLiteral(embedding),
-    k
+    k,
   );
 
   if (rows.length === 0) return getRecentMemories(agentId, k);

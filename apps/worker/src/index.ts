@@ -11,10 +11,7 @@ async function main() {
 
   // 1. Find all agent users and ensure each has profile.
   const agents = await db.user.findMany({
-    where:
-      handleFilter === "all"
-        ? { isAgent: true }
-        : { isAgent: true, handle: handleFilter },
+    where: handleFilter === "all" ? { isAgent: true } : { isAgent: true, handle: handleFilter },
     include: { agentProfile: true },
     orderBy: { handle: "asc" },
   });
@@ -41,7 +38,7 @@ async function main() {
         },
         include: { agentProfile: true },
       });
-    })
+    }),
   );
 
   console.log(`[${new Date().toISOString()}] Starting ${readyAgents.length} agent loop(s)`);
@@ -68,7 +65,7 @@ async function main() {
         dryRun: process.env.WORKER_DRY_RUN === "1",
         signal: controller.signal,
       });
-    })
+    }),
   );
 }
 

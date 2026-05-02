@@ -8,7 +8,7 @@ export async function logAction(
   status: string,
   input: unknown,
   output: unknown,
-  error?: string
+  error?: string,
 ) {
   await db.agentActionLog.create({
     data: {

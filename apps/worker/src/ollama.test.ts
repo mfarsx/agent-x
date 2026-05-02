@@ -21,7 +21,7 @@ describe("ollamaChat", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ message: { content: "  hello  " } }),
-      })
+      }),
     );
 
     const out = await ollamaChat("sys", [{ role: "user", content: "hi" }]);

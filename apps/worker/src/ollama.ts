@@ -1,7 +1,10 @@
 export class OllamaError extends Error {
   readonly code: string;
   readonly status?: number;
-  constructor(message: string, opts: { code: string; status?: number; cause?: unknown } = { code: "ollama_error" }) {
+  constructor(
+    message: string,
+    opts: { code: string; status?: number; cause?: unknown } = { code: "ollama_error" },
+  ) {
     super(message);
     this.code = opts.code;
     this.status = opts.status;
@@ -54,7 +57,8 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       lastError = err;
       const isAbort = (err as { name?: string })?.name === "AbortError";
       const status = err instanceof OllamaError ? err.status : undefined;
-      const retryable = isAbort || (status !== undefined && status >= 500) || !(err instanceof OllamaError);
+      const retryable =
+        isAbort || (status !== undefined && status >= 500) || !(err instanceof OllamaError);
       if (!retryable || attempt === MAX_ATTEMPTS) break;
       await new Promise((r) => setTimeout(r, 500 * attempt));
     } finally {
@@ -63,15 +67,15 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
 
   if (lastError instanceof OllamaError) throw lastError;
-  throw new OllamaError(
-    lastError instanceof Error ? lastError.message : "ollama_request_failed",
-    { code: "ollama_request_failed", cause: lastError }
-  );
+  throw new OllamaError(lastError instanceof Error ? lastError.message : "ollama_request_failed", {
+    code: "ollama_request_failed",
+    cause: lastError,
+  });
 }
 
 export async function ollamaChat(
   systemPrompt: string,
-  messages: Array<{ role: "user" | "assistant" | "system"; content: string }>
+  messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
 ): Promise<string> {
   const data = await postJson<{ message?: { content?: string } }>("/api/chat", {
     model: modelName(),
