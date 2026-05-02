@@ -13,6 +13,17 @@ export type ToggleResult = {
   count: number;
 };
 
+type ExistingPostRelation = { id: string } | null;
+
+type TogglePostRelationOptions = {
+  handle: string;
+  postId: string;
+  findExisting: (userId: string, postId: string) => Promise<ExistingPostRelation>;
+  create: (userId: string, postId: string) => Promise<unknown>;
+  remove: (userId: string, postId: string) => Promise<unknown>;
+  count: (postId: string) => Promise<number>;
+};
+
 async function userIdByHandle(handle: string): Promise<string> {
   const user = await db.user.findFirst({
     where: { handle },
@@ -20,6 +31,25 @@ async function userIdByHandle(handle: string): Promise<string> {
   });
   if (!user) throw new UserNotFoundError(handle);
   return user.id;
+}
+
+async function ensurePostExists(postId: string): Promise<void> {
+  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true } });
+  if (!post) throw new PostNotFoundError(postId);
+}
+
+async function togglePostRelation(options: TogglePostRelationOptions): Promise<ToggleResult> {
+  const userId = await userIdByHandle(options.handle);
+  await ensurePostExists(options.postId);
+
+  const existing = await options.findExisting(userId, options.postId);
+  if (existing) {
+    await options.remove(userId, options.postId);
+  } else {
+    await options.create(userId, options.postId);
+  }
+
+  return { active: !existing, count: await options.count(options.postId) };
 }
 
 export async function createPostAsHandle(handle: string, content: string): Promise<CreatedPost> {
@@ -48,43 +78,33 @@ export async function createPostAsHandle(handle: string, content: string): Promi
 }
 
 export async function toggleLike(handle: string, postId: string): Promise<ToggleResult> {
-  const userId = await userIdByHandle(handle);
-
-  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true } });
-  if (!post) throw new PostNotFoundError(postId);
-
-  const existing = await db.like.findUnique({
-    where: { userId_postId: { userId, postId } },
-    select: { id: true },
+  return togglePostRelation({
+    handle,
+    postId,
+    findExisting: (userId, targetPostId) =>
+      db.like.findUnique({
+        where: { userId_postId: { userId, postId: targetPostId } },
+        select: { id: true },
+      }),
+    create: (userId, targetPostId) => db.like.create({ data: { userId, postId: targetPostId } }),
+    remove: (userId, targetPostId) =>
+      db.like.delete({ where: { userId_postId: { userId, postId: targetPostId } } }),
+    count: (targetPostId) => db.like.count({ where: { postId: targetPostId } }),
   });
-
-  if (existing) {
-    await db.like.delete({ where: { userId_postId: { userId, postId } } });
-  } else {
-    await db.like.create({ data: { userId, postId } });
-  }
-
-  const count = await db.like.count({ where: { postId } });
-  return { active: !existing, count };
 }
 
 export async function toggleRepost(handle: string, postId: string): Promise<ToggleResult> {
-  const userId = await userIdByHandle(handle);
-
-  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true } });
-  if (!post) throw new PostNotFoundError(postId);
-
-  const existing = await db.repost.findUnique({
-    where: { userId_postId: { userId, postId } },
-    select: { id: true },
+  return togglePostRelation({
+    handle,
+    postId,
+    findExisting: (userId, targetPostId) =>
+      db.repost.findUnique({
+        where: { userId_postId: { userId, postId: targetPostId } },
+        select: { id: true },
+      }),
+    create: (userId, targetPostId) => db.repost.create({ data: { userId, postId: targetPostId } }),
+    remove: (userId, targetPostId) =>
+      db.repost.delete({ where: { userId_postId: { userId, postId: targetPostId } } }),
+    count: (targetPostId) => db.repost.count({ where: { postId: targetPostId } }),
   });
-
-  if (existing) {
-    await db.repost.delete({ where: { userId_postId: { userId, postId } } });
-  } else {
-    await db.repost.create({ data: { userId, postId } });
-  }
-
-  const count = await db.repost.count({ where: { postId } });
-  return { active: !existing, count };
 }

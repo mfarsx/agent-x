@@ -13,6 +13,8 @@ export async function listKnownHandles(): Promise<KnownUser[]> {
     orderBy: [{ isAgent: "asc" }, { handle: "asc" }],
   });
   return users
-    .filter((u): u is { handle: string; name: string | null; isAgent: boolean } => u.handle !== null)
+    .filter(
+      (u): u is { handle: string; name: string | null; isAgent: boolean } => u.handle !== null,
+    )
     .map((u) => ({ handle: u.handle, name: u.name, isAgent: u.isAgent }));
 }

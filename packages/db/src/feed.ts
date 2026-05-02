@@ -53,21 +53,25 @@ export type FeedOptions = {
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 50;
+const ANONYMOUS_VIEWER_ID = "__anonymous_viewer__";
 
-export async function getLatestFeed(options: FeedOptions = {}): Promise<FeedPage> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
-  const cursor = options.cursor ?? null;
+function clampLimit(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
+}
 
-  let viewerId: string | null = null;
-  if (options.viewerHandle) {
-    const viewer = await db.user.findFirst({
-      where: { handle: options.viewerHandle },
-      select: { id: true },
-    });
-    viewerId = viewer?.id ?? null;
-  }
+async function viewerIdByHandle(handle: string | null | undefined): Promise<string | null> {
+  if (!handle) return null;
+  const viewer = await db.user.findFirst({
+    where: { handle },
+    select: { id: true },
+  });
+  return viewer?.id ?? null;
+}
 
-  const posts = await db.post.findMany({
+async function findFeedPosts(limit: number, cursor: string | null, viewerId: string | null) {
+  const targetViewerId = viewerId ?? ANONYMOUS_VIEWER_ID;
+
+  return db.post.findMany({
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -77,9 +81,7 @@ export async function getLatestFeed(options: FeedOptions = {}): Promise<FeedPage
       content: true,
       createdAt: true,
       _count: { select: { likes: true, reposts: true } },
-      author: {
-        select: { id: true, handle: true, name: true, image: true, isAgent: true },
-      },
+      author: { select: { id: true, handle: true, name: true, image: true, isAgent: true } },
       parent: {
         select: {
           id: true,
@@ -94,28 +96,16 @@ export async function getLatestFeed(options: FeedOptions = {}): Promise<FeedPage
           author: { select: { handle: true, name: true, isAgent: true } },
         },
       },
-      ...(viewerId
-        ? {
-            likes: {
-              where: { userId: viewerId },
-              select: { id: true },
-              take: 1,
-            },
-            reposts: {
-              where: { userId: viewerId },
-              select: { id: true },
-              take: 1,
-            },
-          }
-        : {}),
+      likes: { where: { userId: targetViewerId }, select: { id: true }, take: 1 },
+      reposts: { where: { userId: targetViewerId }, select: { id: true }, take: 1 },
     },
   });
+}
 
-  const hasMore = posts.length > limit;
-  const sliced = hasMore ? posts.slice(0, limit) : posts;
-  const nextCursor = hasMore ? sliced[sliced.length - 1].id : null;
+type FeedPost = Awaited<ReturnType<typeof findFeedPosts>>[number];
 
-  const items: FeedItem[] = sliced.map((post: any) => ({
+function toFeedItem(post: FeedPost, viewerId: string | null): FeedItem {
+  return {
     id: post.id,
     kind: post.kind,
     content: post.content,
@@ -131,33 +121,33 @@ export async function getLatestFeed(options: FeedOptions = {}): Promise<FeedPage
       ? {
           id: post.parent.id,
           content: post.parent.content,
-          author: {
-            handle: post.parent.author.handle,
-            name: post.parent.author.name,
-            isAgent: post.parent.author.isAgent,
-          },
+          author: post.parent.author,
         }
       : null,
     quotedPost: post.quotedPost
       ? {
           id: post.quotedPost.id,
           content: post.quotedPost.content,
-          author: {
-            handle: post.quotedPost.author.handle,
-            name: post.quotedPost.author.name,
-            isAgent: post.quotedPost.author.isAgent,
-          },
+          author: post.quotedPost.author,
         }
       : null,
-    counts: {
-      likes: post._count.likes,
-      reposts: post._count.reposts,
-    },
+    counts: { likes: post._count.likes, reposts: post._count.reposts },
     viewer: {
-      liked: viewerId ? (post.likes?.length ?? 0) > 0 : false,
-      reposted: viewerId ? (post.reposts?.length ?? 0) > 0 : false,
+      liked: viewerId ? post.likes.length > 0 : false,
+      reposted: viewerId ? post.reposts.length > 0 : false,
     },
-  }));
+  };
+}
 
-  return { items, nextCursor };
+export async function getLatestFeed(options: FeedOptions = {}): Promise<FeedPage> {
+  const limit = clampLimit(options.limit);
+  const cursor = options.cursor ?? null;
+  const viewerId = await viewerIdByHandle(options.viewerHandle);
+  const posts = await findFeedPosts(limit, cursor, viewerId);
+
+  const hasMore = posts.length > limit;
+  const sliced = hasMore ? posts.slice(0, limit) : posts;
+  const nextCursor = hasMore ? sliced[sliced.length - 1].id : null;
+
+  return { items: sliced.map((post) => toFeedItem(post, viewerId)), nextCursor };
 }
