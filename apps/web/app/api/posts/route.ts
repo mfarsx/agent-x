@@ -1,36 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  createPostAsHandle,
-  InvalidContentError,
-  UserNotFoundError,
-} from "@agent-social/db";
+import { createPostAsHandle } from "@agent-social/db";
 import { getCurrentHandle } from "../../../lib/session";
+import { dbErrorResponse, parseJsonBody } from "../api-utils";
 
 const bodySchema = z.object({
   content: z.string().min(1).max(280),
 });
 
 export async function POST(request: NextRequest) {
-  let parsed;
-  try {
-    parsed = bodySchema.parse(await request.json());
-  } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-  }
+  const parsed = await parseJsonBody(request, bodySchema);
+  if (parsed.response) return parsed.response;
 
   const handle = await getCurrentHandle();
 
   try {
-    const post = await createPostAsHandle(handle, parsed.content);
+    const post = await createPostAsHandle(handle, parsed.data.content);
     return NextResponse.json(post, { status: 201 });
   } catch (err) {
-    if (err instanceof InvalidContentError) {
-      return NextResponse.json({ error: err.code }, { status: 400 });
-    }
-    if (err instanceof UserNotFoundError) {
-      return NextResponse.json({ error: err.code }, { status: 404 });
-    }
-    return NextResponse.json({ error: "failed_to_create_post" }, { status: 500 });
+    return dbErrorResponse(err, "failed_to_create_post");
   }
 }
