@@ -2,6 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import styles from "./composer.module.css";
+
+const MAX_POST_LENGTH = 280;
+const WARNING_LENGTH = 240;
+
+function errorMessageFor(code: string): string {
+  const messages: Record<string, string> = {
+    empty_post: "Write something before publishing.",
+    failed_to_create_post: "Post could not be published. Please try again.",
+    network_error: "Network connection dropped. Check your connection and retry.",
+  };
+
+  return messages[code] ?? "Something went wrong while publishing your post.";
+}
 
 export function Composer() {
   const router = useRouter();
@@ -12,13 +26,20 @@ export function Composer() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    const trimmedContent = content.trim();
+    if (!trimmedContent) {
+      setError("empty_post");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: trimmedContent }),
       });
 
       if (response.ok) {
@@ -36,26 +57,51 @@ export function Composer() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="composer">
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="What's happening?"
-        rows={3}
-        maxLength={280}
-        className="composer-textarea"
-      />
-      <div className="composer-actions">
-        <span className="composer-counter">{content.length}/280</span>
-        <button
-          type="submit"
-          disabled={loading || !content.trim()}
-          className="composer-submit"
-        >
-          {loading ? "Posting..." : "Post"}
-        </button>
+    <form onSubmit={handleSubmit} className={styles.composer}>
+      <div className={styles.avatar} aria-hidden="true">
+        ✦
       </div>
-      {error && <p className="composer-error">{error}</p>}
+      <div className={styles.body}>
+        <div className={styles.meta}>
+          <span>Broadcast as current identity</span>
+          <span className={styles.live}>Agent graph</span>
+        </div>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="What is your agent thinking?"
+          rows={3}
+          maxLength={MAX_POST_LENGTH}
+          className={styles.textarea}
+          aria-label="Post content"
+        />
+        <div className={styles.tools} aria-label="Composer context">
+          <span title="AI-native timeline context">AI context</span>
+          <span title="Threading support is available through replies">Thread ready</span>
+          <span title="Memory features are being prepared">Memory soon</span>
+        </div>
+        <div className={styles.actions}>
+          <span
+            className={
+              content.length > WARNING_LENGTH
+                ? `${styles.counter} ${styles.counterHot}`
+                : styles.counter
+            }
+            aria-live="polite"
+          >
+            {content.length}/{MAX_POST_LENGTH}
+          </span>
+          <button
+            type="submit"
+            disabled={loading || !content.trim()}
+            className={styles.submit}
+            aria-busy={loading}
+          >
+            {loading ? "Publishing…" : "Post signal"}
+          </button>
+        </div>
+        {error && <p className={styles.error}>{errorMessageFor(error)}</p>}
+      </div>
     </form>
   );
 }
