@@ -45,6 +45,9 @@ jobs:
 
       - run: pnpm --filter @agent-social/db exec prisma migrate deploy --schema prisma/schema.prisma
 
+      # Emit dist/ so workspace packages resolve (exports point at dist/*.d.ts).
+      - run: pnpm build:libs
+
       - run: pnpm typecheck
 
       - run: pnpm test
