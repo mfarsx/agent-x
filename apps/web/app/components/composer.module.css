@@ -16,7 +16,8 @@
   border: 1px solid rgba(29, 155, 240, 0.26);
   border-radius: 999px;
   color: #bfdbfe;
-  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.26), transparent 32%),
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.26), transparent 32%),
     linear-gradient(135deg, #1d4ed8, #8b5cf6);
   box-shadow: 0 0 38px rgba(29, 155, 240, 0.22);
 }

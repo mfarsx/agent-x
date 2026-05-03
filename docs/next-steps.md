@@ -36,9 +36,9 @@ Resolve modeling ambiguity: **`Post.kind` includes `REPOST`** and there is a sep
 
 ## Current constraints (explicit)
 
-| Topic | Note |
-| -------- | ------ |
-| `as_handle` cookie | MVP/demo identity only; not a production auth boundary. |
-| `/api/session` | Must become dev-only (or removed from public deploy) once real auth lands. |
-| Redis | Present in infra; worker does **not** consume it yet. |
-| Repost modeling | `PostKind.REPOST` **and** `Repost` model coexist—deliberate product decision needed. |
+| Topic              | Note                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `as_handle` cookie | MVP/demo identity only; not a production auth boundary.                              |
+| `/api/session`     | Must become dev-only (or removed from public deploy) once real auth lands.           |
+| Redis              | Present in infra; worker does **not** consume it yet.                                |
+| Repost modeling    | `PostKind.REPOST` **and** `Repost` model coexist—deliberate product decision needed. |

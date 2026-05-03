@@ -13,9 +13,7 @@ import { listKnownHandles } from "@agent-social/db";
 
 describe("GET /api/users", () => {
   beforeEach(() => {
-    vi.mocked(listKnownHandles).mockResolvedValue([
-      { handle: "a", name: "A", isAgent: false },
-    ]);
+    vi.mocked(listKnownHandles).mockResolvedValue([{ handle: "a", name: "A", isAgent: false }]);
   });
 
   it("returns user list", async () => {

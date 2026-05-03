@@ -1,16 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import {
-  InvalidContentError,
-  PostNotFoundError,
-  UserNotFoundError,
-} from "@agent-social/db";
-import {
-  dbErrorResponse,
-  jsonError,
-  parseJsonBody,
-  postIdBodySchema,
-} from "./api-utils";
+import { InvalidContentError, PostNotFoundError, UserNotFoundError } from "@agent-social/db";
+import { dbErrorResponse, jsonError, parseJsonBody, postIdBodySchema } from "./api-utils";
 
 describe("jsonError", () => {
   it("returns JSON body and HTTP status", async () => {
