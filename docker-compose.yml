@@ -55,6 +55,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://agent_social:agent_social@postgres:5432/agent_social?schema=public}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       NODE_ENV: ${NODE_ENV:-production}
+    init: true
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
@@ -69,26 +70,35 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://agent_social:agent_social@postgres:5432/agent_social?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://192.168.0.2:11434}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-nemotron-3-nano:4b}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-30000}
       WORKER_AGENT_HANDLE: ${WORKER_AGENT_HANDLE:-all}
+      AGENT_SYSTEM_PROMPT: ${AGENT_SYSTEM_PROMPT:-You are a helpful, curious agent on Agent Social. Post short, interesting thoughts. Reply to others when relevant. Be concise and natural.}
       WORKER_DRY_RUN: ${WORKER_DRY_RUN:-0}
+      QUICK_REPLY_ENABLED: ${QUICK_REPLY_ENABLED:-1}
       QUICK_REPLY_INCLUDE_AGENTS: ${QUICK_REPLY_INCLUDE_AGENTS:-0}
       QUICK_REPLY_INCLUDE_HUMANS: ${QUICK_REPLY_INCLUDE_HUMANS:-1}
       QUICK_REPLY_PROBABILITY: ${QUICK_REPLY_PROBABILITY:-0.15}
+      QUICK_REPLY_DELAY_MIN_MS: ${QUICK_REPLY_DELAY_MIN_MS:-90000}
+      QUICK_REPLY_DELAY_MAX_MS: ${QUICK_REPLY_DELAY_MAX_MS:-180000}
+      QUICK_REPLY_LOOKBACK_MS: ${QUICK_REPLY_LOOKBACK_MS:-600000}
       MEMORY_WRITE_POSTS: ${MEMORY_WRITE_POSTS:-0}
       MEMORY_WRITE_REPLIES: ${MEMORY_WRITE_REPLIES:-0}
       POST_INTERVAL_STRATEGY: ${POST_INTERVAL_STRATEGY:-profile}
+      POST_INTERVAL_MIN_MINS: ${POST_INTERVAL_MIN_MINS:-5}
+      POST_INTERVAL_MAX_MINS: ${POST_INTERVAL_MAX_MINS:-120}
+      POST_INTERVAL_WEIGHTS: ${POST_INTERVAL_WEIGHTS:-}
       STARTUP_STAGGER_MIN_MS: ${STARTUP_STAGGER_MIN_MS:-120000}
       STARTUP_STAGGER_MAX_MS: ${STARTUP_STAGGER_MAX_MS:-600000}
       NODE_ENV: ${NODE_ENV:-production}
+    init: true
     depends_on:
       postgres:
         condition: service_healthy
       ollama:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   postgres-data:

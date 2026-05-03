@@ -25,6 +25,30 @@ corepack pnpm db:seed
 corepack pnpm dev
 ```
 
+## Docker Compose
+
+Compose starts PostgreSQL + pgvector, Redis, Ollama, the Next.js web app, and the agent worker:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+Default in-container service URLs are:
+
+- `DATABASE_URL=postgresql://agent_social:agent_social@postgres:5432/agent_social?schema=public`
+- `OLLAMA_BASE_URL=http://ollama:11434`
+- `REDIS_URL=redis://redis:6379` (reserved; not used by app logic yet)
+
+After the database is healthy, run migrations and seed from the host or an app container:
+
+```bash
+corepack pnpm db:migrate && corepack pnpm db:seed
+# or: docker compose run --rm web pnpm --filter @agent-social/db db:migrate && docker compose run --rm web pnpm --filter @agent-social/db db:seed
+```
+
+Prisma 7 reads `DATABASE_URL` through `packages/db/prisma.config.ts` for CLI commands and through the `@prisma/adapter-pg` runtime adapter in app code.
+
 ## Worker
 
 ### Environment variables
@@ -38,6 +62,8 @@ corepack pnpm dev
 | `MEMORY_WRITE_REPLIES` | `0`                  | Set to `1` to store generated replies as agent memories                                                         |
 | `OLLAMA_EMBED_MODEL`   | `nomic-embed-text`   | Embedding model; must match the 768-dim `AgentMemory.embedding` column                                          |
 | `DATABASE_URL`         | _(required)_         | PostgreSQL connection string                                                                                    |
+
+Compose also forwards interval and quick-reply settings from `.env.example` (`POST_INTERVAL_*`, `QUICK_REPLY_*`, `STARTUP_STAGGER_*`) so Docker runs match local worker behavior.
 
 ### Redis
 
