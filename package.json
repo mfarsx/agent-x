@@ -7,6 +7,8 @@
     "dev": "corepack pnpm --filter @agent-social/web dev",
     "build": "corepack pnpm -r build",
     "typecheck": "corepack pnpm -r typecheck",
+    "check": "corepack pnpm typecheck && corepack pnpm test",
+    "smoke": "corepack pnpm db:generate && corepack pnpm typecheck && corepack pnpm test",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
