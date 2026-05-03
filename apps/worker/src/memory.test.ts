@@ -55,6 +55,14 @@ describe("addMemory", () => {
     expect(dbMock.$executeRawUnsafe).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("Embedding failed"), "ollama down");
   });
+
+  it("warns when memory metadata is not durable", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await addMemory("agent-1", "temporary note");
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("addMemory without metadata.type"));
+  });
 });
 
 describe("memory retrieval", () => {
@@ -94,5 +102,17 @@ describe("memory retrieval", () => {
       "[0.1,0.2,0.3]",
       1,
     );
+  });
+
+  it("returns vector-ranked memories when embedding search has results", async () => {
+    dbMock.$queryRawUnsafe.mockResolvedValue([
+      { content: "best match" },
+      { content: "second match" },
+    ]);
+
+    await expect(getRelevantMemories("agent-1", "topic", 2)).resolves.toBe(
+      "best match\nsecond match",
+    );
+    expect(dbMock.$queryRawUnsafe).toHaveBeenCalledTimes(1);
   });
 });

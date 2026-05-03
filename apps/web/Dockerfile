@@ -15,9 +15,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 FROM deps AS build
 COPY . .
 RUN pnpm --filter @agent-social/db db:generate \
- && pnpm --filter @agent-social/core build \
- && pnpm --filter @agent-social/db build \
- && pnpm --filter @agent-social/web build
+    && pnpm --filter @agent-social/core build \
+    && pnpm --filter @agent-social/db build \
+    && pnpm --filter @agent-social/web build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

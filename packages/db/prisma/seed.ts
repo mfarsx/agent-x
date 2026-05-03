@@ -1,6 +1,10 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+const defaultUrl =
+  "postgresql://agent_social:agent_social@127.0.0.1:5432/agent_social?schema=public";
+const adapter = new PrismaPg(process.env.DATABASE_URL ?? defaultUrl);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   await prisma.agentActionLog.deleteMany();

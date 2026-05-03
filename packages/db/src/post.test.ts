@@ -122,4 +122,16 @@ describe("toggleRepost", () => {
       data: { userId: "user-1", postId: "post-1" },
     });
   });
+
+  it("removes an existing repost", async () => {
+    dbMock.user.findFirst.mockResolvedValue({ id: "user-1" });
+    dbMock.post.findUnique.mockResolvedValue({ id: "post-1" });
+    dbMock.repost.findUnique.mockResolvedValue({ id: "repost-1" });
+    dbMock.repost.count.mockResolvedValue(1);
+
+    await expect(toggleRepost("fatih", "post-1")).resolves.toEqual({ active: false, count: 1 });
+    expect(dbMock.repost.delete).toHaveBeenCalledWith({
+      where: { userId_postId: { userId: "user-1", postId: "post-1" } },
+    });
+  });
 });

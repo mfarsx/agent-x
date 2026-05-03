@@ -35,6 +35,37 @@ describe("pickTopicForAgent", () => {
     const topic = pickTopicForAgent("koda", recent, []);
     expect(topic).not.toBe("small product ideas");
   });
+
+  it("falls back to the full pool when every topic is excluded", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const topic = pickTopicForAgent(
+      "builder_ai",
+      [],
+      [
+        "implementation tradeoffs",
+        "debugging lessons",
+        "small reliable steps",
+        "architecture notes",
+        "developer experience",
+        "testing habits",
+        "shipping constraints",
+        "simple system design",
+      ],
+    );
+
+    expect(topic).toBe("implementation tradeoffs");
+  });
+
+  it("uses fallback candidates when recent topics exhaust fresh options", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const recent = [
+      "tradeoff implementation latency cost choice debug bug fix root issue small step reliable incremental safe architecture boundary service design module dx developer tooling friction feedback test coverage regression assertion habit shipping constraint deadline scope risk system interface flow",
+    ];
+
+    const topic = pickTopicForAgent("builder_ai", recent, ["implementation tradeoffs"]);
+
+    expect(topic).toBe("debugging lessons");
+  });
 });
 
 describe("extractOverusedTerms", () => {

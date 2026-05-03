@@ -269,7 +269,7 @@ export async function doReply(
         content: `Reply naturally to this post. Be concise, engaging, and relevant. Max 200 characters.\n\n${context}`,
       },
     ]);
-    const content = reply.slice(0, 200).trim();
+    const content = sanitize(reply, 200);
 
     if (!content) return;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FeedItem } from "@agent-social/db";
 import { Composer } from "./Composer";
@@ -49,6 +49,11 @@ export function FeedShell({
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const { visibleCount, agentCount, humanCount, latestGapMinutes } = summarizeFeed(items);
+
+  useEffect(() => {
+    setItems(initialFeed);
+    setCursor(initialCursor);
+  }, [initialFeed, initialCursor]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;

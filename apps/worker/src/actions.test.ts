@@ -22,7 +22,8 @@ vi.mock("./ollama.js", () => ({
 import { db } from "@agent-social/db";
 import { logAction } from "./action-log.js";
 import { doPost, doReply } from "./actions.js";
-import { getRelevantMemories } from "./memory.js";
+import { sanitize } from "./content-quality.js";
+import { addMemory, getRelevantMemories } from "./memory.js";
 import { ollamaChat } from "./ollama.js";
 
 type DbMock = {
@@ -90,6 +91,52 @@ describe("doPost", () => {
       null,
     );
   });
+
+  it("creates a database post and writes memory when enabled", async () => {
+    process.env.MEMORY_WRITE_POSTS = "1";
+    dbMock.post.findMany.mockResolvedValue([{ content: "older update" }, { content: null }]);
+    dbMock.post.create.mockResolvedValue({ id: "post-1" });
+
+    await doPost({ ...baseOptions, dryRun: false });
+
+    expect(dbMock.post.create).toHaveBeenCalledWith({
+      data: {
+        authorId: "agent-1",
+        kind: "POST",
+        content: "fresh generated post",
+      },
+    });
+    expect(addMemory).toHaveBeenCalledWith("agent-1", "Posted: fresh generated post", {
+      postId: "post-1",
+      type: "ephemeral_post",
+    });
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "post",
+      "post",
+      "post-1",
+      "ok",
+      expect.objectContaining({ content: "fresh generated post" }),
+      { postId: "post-1" },
+    );
+  });
+
+  it("logs post errors without throwing", async () => {
+    dbMock.post.findMany.mockRejectedValue(new Error("db down"));
+
+    await expect(doPost(baseOptions)).resolves.toBeUndefined();
+
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "post",
+      null,
+      null,
+      "error",
+      {},
+      null,
+      "db down",
+    );
+  });
 });
 
 describe("doReply", () => {
@@ -149,6 +196,138 @@ describe("doReply", () => {
       "ok",
       { parentPostId: "post-1", content: "With focused regression checks." },
       { postId: "reply-1" },
+    );
+  });
+
+  it("sanitizes reply output like posts (quotes, whitespace, max length)", async () => {
+    const rawReply = '  "Hello there."  ';
+    const cleaned = sanitize(rawReply, 200);
+    dbMock.post.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "post-1",
+          authorId: "human-1",
+          content: "Ping?",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          author: { handle: "fatih", name: "Fatih", isAgent: false },
+          replies: [],
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMock.post.create.mockResolvedValue({ id: "reply-2" });
+    vi.mocked(ollamaChat).mockResolvedValue(rawReply);
+
+    await doReply({ ...baseOptions, dryRun: false });
+
+    expect(dbMock.post.create).toHaveBeenCalledWith({
+      data: {
+        authorId: "agent-1",
+        kind: "REPLY",
+        content: cleaned,
+        parentId: "post-1",
+      },
+    });
+  });
+
+  it("logs a dry-run reply without creating a row", async () => {
+    dbMock.post.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "post-1",
+          authorId: "human-1",
+          content: "What changed?",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          author: { handle: "fatih", name: null, isAgent: false },
+          replies: [],
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ author: { handle: "ada" }, content: "Earlier reply" }]);
+    vi.mocked(getRelevantMemories).mockResolvedValue("Remember context");
+    vi.mocked(ollamaChat).mockResolvedValue("Dry reply");
+
+    await doReply(baseOptions);
+
+    expect(dbMock.post.create).not.toHaveBeenCalled();
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "reply",
+      "post",
+      "post-1",
+      "dry_run",
+      { parentPostId: "post-1", content: "Dry reply" },
+      null,
+    );
+  });
+
+  it("skips empty generated replies", async () => {
+    dbMock.post.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "post-1",
+          authorId: "human-1",
+          content: "hello?",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          author: { handle: "fatih", name: "Fatih", isAgent: false },
+          replies: [],
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    vi.mocked(ollamaChat).mockResolvedValue("   ");
+
+    await doReply({ ...baseOptions, dryRun: false });
+
+    expect(dbMock.post.create).not.toHaveBeenCalled();
+    expect(logAction).not.toHaveBeenCalled();
+  });
+
+  it("writes reply memory when enabled", async () => {
+    process.env.MEMORY_WRITE_REPLIES = "1";
+    dbMock.post.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "post-1",
+          authorId: "human-1",
+          content: "How now?",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          author: { handle: "fatih", name: "Fatih", isAgent: false },
+          replies: [],
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMock.post.create.mockResolvedValue({ id: "reply-3" });
+    vi.mocked(ollamaChat).mockResolvedValue("By keeping scope small.");
+
+    await doReply({ ...baseOptions, dryRun: false });
+
+    expect(addMemory).toHaveBeenCalledWith(
+      "agent-1",
+      "Replied to @fatih: By keeping scope small.",
+      {
+        postId: "reply-3",
+        parentPostId: "post-1",
+        type: "ephemeral_reply",
+      },
+    );
+  });
+
+  it("logs reply errors without throwing", async () => {
+    dbMock.post.findMany.mockRejectedValue(new Error("reply db down"));
+
+    await expect(doReply(baseOptions)).resolves.toBeUndefined();
+
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "reply",
+      null,
+      null,
+      "error",
+      {},
+      null,
+      "reply db down",
     );
   });
 });

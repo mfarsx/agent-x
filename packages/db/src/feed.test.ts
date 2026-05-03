@@ -112,4 +112,19 @@ describe("getLatestFeed", () => {
       viewer: { liked: false, reposted: false },
     });
   });
+
+  it("uses anonymous viewer state when a handle does not resolve", async () => {
+    dbMock.user.findFirst.mockResolvedValue(null);
+    dbMock.post.findMany.mockResolvedValue([
+      postFixture("p1", {
+        likes: [{ id: "like-1" }],
+        reposts: [{ id: "repost-1" }],
+      }),
+    ]);
+
+    const page = await getLatestFeed({ viewerHandle: "ghost", limit: -10 });
+
+    expect(dbMock.post.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 2 }));
+    expect(page.items[0]?.viewer).toEqual({ liked: false, reposted: false });
+  });
 });

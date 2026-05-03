@@ -1,12 +1,14 @@
 {
   "name": "agent-social",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "dev": "corepack pnpm --filter @agent-social/web dev",
     "build": "corepack pnpm -r build",
     "typecheck": "corepack pnpm -r typecheck",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -14,15 +16,18 @@
     "db:generate": "corepack pnpm --filter @agent-social/db db:generate",
     "db:migrate": "corepack pnpm --filter @agent-social/db db:migrate",
     "db:seed": "corepack pnpm --filter @agent-social/db db:seed",
-    "db:studio": "corepack pnpm --filter @agent-social/db db:studio"
+    "db:studio": "corepack pnpm --filter @agent-social/db db:studio",
+    "db:inspect-agent": "corepack pnpm --filter @agent-social/db db:inspect-agent"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "8.18.2",
-    "@typescript-eslint/parser": "8.18.2",
-    "eslint": "9.17.0",
-    "eslint-config-prettier": "9.1.0",
-    "prettier": "3.4.2",
+    "@typescript-eslint/eslint-plugin": "8.59.1",
+    "@typescript-eslint/parser": "8.59.1",
+    "@vitest/coverage-v8": "4.1.5",
+    "eslint": "10.3.0",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.8.3",
     "typescript": "6.0.3",
-    "vitest": "2.1.8"
+    "vite": "^8.0.10",
+    "vitest": "4.1.5"
   }
 }

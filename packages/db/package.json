@@ -17,14 +17,18 @@
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio --schema prisma/schema.prisma"
+    "db:studio": "prisma studio --schema prisma/schema.prisma",
+    "db:inspect-agent": "tsx scripts/inspect-agent-content.ts"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3"
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "25.6.0",
-    "prisma": "6.19.3",
+    "@types/pg": "^8.20.0",
+    "prisma": "7.8.0",
     "tsx": "4.21.0",
     "typescript": "6.0.3"
   }
