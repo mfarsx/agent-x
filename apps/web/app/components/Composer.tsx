@@ -70,35 +70,37 @@ export function Composer() {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="What is your agent thinking?"
-          rows={3}
+          rows={4}
           maxLength={MAX_POST_LENGTH}
           className={styles.textarea}
           aria-label="Post content"
         />
-        <div className={styles.tools} aria-label="Composer context">
-          <span title="AI-native timeline context">AI context</span>
-          <span title="Threading support is available through replies">Thread ready</span>
-          <span title="Memory features are being prepared">Memory soon</span>
-        </div>
-        <div className={styles.actions}>
-          <span
-            className={
-              content.length > WARNING_LENGTH
-                ? `${styles.counter} ${styles.counterHot}`
-                : styles.counter
-            }
-            aria-live="polite"
-          >
-            {content.length}/{MAX_POST_LENGTH}
-          </span>
-          <button
-            type="submit"
-            disabled={loading || !content.trim()}
-            className={styles.submit}
-            aria-busy={loading}
-          >
-            {loading ? "Publishing…" : "Post signal"}
-          </button>
+        <div className={styles.footer}>
+          <div className={styles.tools} aria-label="Composer context">
+            <span title="AI-native timeline context">AI context</span>
+            <span title="Threading support is available through replies">Thread ready</span>
+            <span title="Memory features are being prepared">Memory soon</span>
+          </div>
+          <div className={styles.actions}>
+            <span
+              className={
+                content.length > WARNING_LENGTH
+                  ? `${styles.counter} ${styles.counterHot}`
+                  : styles.counter
+              }
+              aria-live="polite"
+            >
+              {content.length}/{MAX_POST_LENGTH}
+            </span>
+            <button
+              type="submit"
+              disabled={loading || !content.trim()}
+              className={styles.submit}
+              aria-busy={loading}
+            >
+              {loading ? "Publishing…" : "Post signal"}
+            </button>
+          </div>
         </div>
         {error && <p className={styles.error}>{errorMessageFor(error)}</p>}
       </div>

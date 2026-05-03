@@ -59,6 +59,12 @@ function findElement(node: unknown, predicate: (node: ElementNode) => boolean): 
   return null;
 }
 
+function requireElement(node: unknown, predicate: (node: ElementNode) => boolean): ElementNode {
+  const element = findElement(node, predicate);
+  expect(element).not.toBeNull();
+  return element as ElementNode;
+}
+
 function itemFixture(overrides: Partial<FeedItem> = {}): FeedItem {
   return {
     id: "post-1",
@@ -83,15 +89,23 @@ beforeEach(() => {
 describe("Composer interactions", () => {
   it("submits valid content and refreshes the router", async () => {
     const setters = mockReactState(["  hello graph  ", null, false]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
     const { Composer } = await import("./Composer");
 
     const form = Composer() as ElementNode;
+    const preventDefault = vi.fn();
     await (form.props?.onSubmit as (event: { preventDefault: () => void }) => Promise<void>)({
-      preventDefault: vi.fn(),
+      preventDefault,
     });
 
-    expect(fetch).toHaveBeenCalledWith("/api/posts", expect.objectContaining({ method: "POST" }));
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(setters[1]).toHaveBeenCalledWith(null);
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "hello graph" }),
+    });
     expect(setters[0]).toHaveBeenCalledWith("");
     expect(routerRefresh).toHaveBeenCalled();
     expect(setters[2]).toHaveBeenNthCalledWith(1, true);
@@ -100,30 +114,43 @@ describe("Composer interactions", () => {
 
   it("surfaces empty, API, and network errors", async () => {
     let setters = mockReactState(["   ", null, false]);
+    let fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     let { Composer } = await import("./Composer");
     let form = Composer() as ElementNode;
+    let preventDefault = vi.fn();
 
     await (form.props?.onSubmit as (event: { preventDefault: () => void }) => Promise<void>)({
-      preventDefault: vi.fn(),
+      preventDefault,
     });
+    expect(preventDefault).toHaveBeenCalledOnce();
     expect(setters[1]).toHaveBeenCalledWith("empty_post");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(setters[2]).not.toHaveBeenCalled();
 
     vi.resetModules();
     setters = mockReactState(["hello", null, false]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "invalid_content" }) }),
-    );
+    fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, json: async () => ({ error: "invalid_content" }) });
+    vi.stubGlobal("fetch", fetchMock);
     ({ Composer } = await import("./Composer"));
     form = Composer() as ElementNode;
+    preventDefault = vi.fn();
     await (form.props?.onSubmit as (event: { preventDefault: () => void }) => Promise<void>)({
-      preventDefault: vi.fn(),
+      preventDefault,
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "hello" }),
     });
     expect(setters[1]).toHaveBeenLastCalledWith("invalid_content");
 
     vi.resetModules();
     setters = mockReactState(["hello", null, false]);
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
     ({ Composer } = await import("./Composer"));
     form = Composer() as ElementNode;
     await (form.props?.onSubmit as (event: { preventDefault: () => void }) => Promise<void>)({
@@ -152,43 +179,44 @@ describe("Composer interactions", () => {
 describe("FeedShell interactions", () => {
   it("loads the next feed page and records failures", async () => {
     let setters = mockReactState([[itemFixture()], "cursor-1", false, null]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ items: [itemFixture({ id: "post-2" })], nextCursor: null }),
-      }),
-    );
+    let fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [itemFixture({ id: "post-2" })], nextCursor: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const { FeedShell } = await import("./FeedShell");
 
     let tree = FeedShell({
       initialFeed: [itemFixture()],
       initialCursor: "cursor-1",
     }) as ElementNode;
-    const loadMore = findElement(
+    const loadMore = requireElement(
       tree,
       (node) => node.type === "button" && textOf(node) === "Load more",
     );
 
-    await (loadMore?.props?.onClick as () => Promise<void>)();
-    expect(fetch).toHaveBeenCalledWith("/api/feed?cursor=cursor-1");
+    await (loadMore.props?.onClick as () => Promise<void>)();
+    expect(fetchMock).toHaveBeenCalledWith("/api/feed?cursor=cursor-1");
     expect(setters[2]).toHaveBeenNthCalledWith(1, true);
-    expect(setters[0]).toHaveBeenLastCalledWith(expect.any(Function));
+    const appendPage = setters[0].mock.calls.at(-1)?.[0] as (prev: FeedItem[]) => FeedItem[];
+    expect(appendPage([itemFixture()]).map((item) => item.id)).toEqual(["post-1", "post-2"]);
     expect(setters[1]).toHaveBeenLastCalledWith(null);
     expect(setters[2]).toHaveBeenLastCalledWith(false);
 
     vi.resetModules();
     setters = mockReactState([[itemFixture()], "cursor-1", false, null]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal("fetch", fetchMock);
     const module = await import("./FeedShell");
     tree = module.FeedShell({
       initialFeed: [itemFixture()],
       initialCursor: "cursor-1",
     }) as ElementNode;
     await (
-      findElement(tree, (node) => node.type === "button" && textOf(node) === "Load more")?.props
+      requireElement(tree, (node) => node.type === "button" && textOf(node) === "Load more").props
         ?.onClick as () => Promise<void>
     )();
+    expect(fetchMock).toHaveBeenCalledWith("/api/feed?cursor=cursor-1");
     expect(setters[3]).toHaveBeenLastCalledWith("Could not load more posts. Please try again.");
   });
 
@@ -215,7 +243,7 @@ describe("FeedShell interactions", () => {
     }) as ElementNode;
 
     await (
-      findElement(tree, (node) => node.type === "button" && textOf(node) === "Load more")?.props
+      requireElement(tree, (node) => node.type === "button" && textOf(node) === "Load more").props
         ?.onClick as () => Promise<void>
     )();
     expect(setters[3]).toHaveBeenLastCalledWith("Could not load more posts. Please try again.");
@@ -225,28 +253,33 @@ describe("FeedShell interactions", () => {
 describe("PostCard interactions", () => {
   it("updates local like state from the API and handles failures", async () => {
     let setters = mockReactState([false, false, 0, 0, null, null]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ active: true, count: 3 }) }),
-    );
+    let fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ active: true, count: 3 }) });
+    vi.stubGlobal("fetch", fetchMock);
     const { PostCard } = await import("./PostCard");
 
     let tree = PostCard({ item: itemFixture() }) as ElementNode;
-    const like = findElement(tree, (node) => node.props?.["aria-label"] === "Like post");
-    await (like?.props?.onClick as () => Promise<void>)();
+    const like = requireElement(tree, (node) => node.props?.["aria-label"] === "Like post");
+    await (like.props?.onClick as () => Promise<void>)();
 
-    expect(fetch).toHaveBeenCalledWith("/api/likes", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/likes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: "post-1" }),
+    });
     expect(setters[0]).toHaveBeenCalledWith(true);
     expect(setters[2]).toHaveBeenCalledWith(3);
     expect(setters[4]).toHaveBeenLastCalledWith(null);
 
     vi.resetModules();
     setters = mockReactState([false, false, 0, 0, null, null]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal("fetch", fetchMock);
     const module = await import("./PostCard");
     tree = module.PostCard({ item: itemFixture() }) as ElementNode;
     await (
-      findElement(tree, (node) => node.props?.["aria-label"] === "Like post")?.props
+      requireElement(tree, (node) => node.props?.["aria-label"] === "Like post").props
         ?.onClick as () => Promise<void>
     )();
     expect(setters[5]).toHaveBeenCalledWith("Action failed. Please try again.");
@@ -254,29 +287,34 @@ describe("PostCard interactions", () => {
 
   it("updates repost state and handles network errors", async () => {
     let setters = mockReactState([false, false, 0, 0, null, null]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ active: true, count: 4 }) }),
-    );
+    let fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ active: true, count: 4 }) });
+    vi.stubGlobal("fetch", fetchMock);
     const { PostCard } = await import("./PostCard");
 
     let tree = PostCard({ item: itemFixture() }) as ElementNode;
     await (
-      findElement(tree, (node) => node.props?.["aria-label"] === "Repost")?.props
+      requireElement(tree, (node) => node.props?.["aria-label"] === "Repost").props
         ?.onClick as () => Promise<void>
     )();
 
-    expect(fetch).toHaveBeenCalledWith("/api/reposts", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/reposts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: "post-1" }),
+    });
     expect(setters[1]).toHaveBeenCalledWith(true);
     expect(setters[3]).toHaveBeenCalledWith(4);
 
     vi.resetModules();
     setters = mockReactState([false, false, 0, 0, null, null]);
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
     const module = await import("./PostCard");
     tree = module.PostCard({ item: itemFixture() }) as ElementNode;
     await (
-      findElement(tree, (node) => node.props?.["aria-label"] === "Repost")?.props
+      requireElement(tree, (node) => node.props?.["aria-label"] === "Repost").props
         ?.onClick as () => Promise<void>
     )();
 
@@ -291,19 +329,26 @@ describe("HandleSwitcher interactions", () => {
       { handle: "scout_ai", name: "Scout", isAgent: true },
     ];
     let setters = mockReactState(["fatih"]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    let fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
     const { HandleSwitcher } = await import("./HandleSwitcher");
 
     let selector = HandleSwitcher({ initialHandle: "fatih", users }) as ElementNode;
     await (selector.props?.onHandleChange as (handle: string) => Promise<void>)("scout_ai");
 
+    expect(fetchMock).toHaveBeenCalledWith("/api/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handle: "scout_ai" }),
+    });
     expect(setters[0]).toHaveBeenCalledWith("scout_ai");
     expect(routerRefresh).toHaveBeenCalled();
 
     vi.resetModules();
     routerRefresh.mockClear();
     setters = mockReactState(["fatih"]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal("fetch", fetchMock);
     const module = await import("./HandleSwitcher");
     selector = module.HandleSwitcher({ initialHandle: "fatih", users }) as ElementNode;
     await (selector.props?.onHandleChange as (handle: string) => Promise<void>)("scout_ai");

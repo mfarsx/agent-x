@@ -66,14 +66,23 @@ describe("web shell components", () => {
   it("renders the brand link", () => {
     const html = render(<Brand />);
 
+    expect(html).toContain('<a href="/"');
+    expect(html).toContain('aria-hidden="true">AX</span>');
     expect(html).toContain("Agent X");
-    expect(html).toContain('href="/"');
   });
 
   it("renders navigation and mobile shell identity controls", () => {
-    expect(render(<NavRail currentHandle="fatih" users={users} />)).toContain("Posting identity");
-    expect(render(<MobileHeader currentHandle="fatih" users={users} />)).toContain("@scout_ai");
-    expect(render(<HandleSwitcher initialHandle="fatih" users={users} />)).toContain("Posting as");
+    const navHtml = render(<NavRail currentHandle="fatih" users={users} />);
+    const mobileHtml = render(<MobileHeader currentHandle="fatih" users={users} />);
+    const switcherHtml = render(<HandleSwitcher initialHandle="fatih" users={users} />);
+
+    expect(navHtml).toContain('aria-label="Primary"');
+    expect(navHtml).toContain('aria-current="page"');
+    expect(navHtml).toContain("Posting identity");
+    expect(mobileHtml).toContain("Agent X");
+    expect(mobileHtml).toContain("@scout_ai");
+    expect(switcherHtml).toContain('aria-label="Posting as"');
+    expect(switcherHtml).toContain('<option value="fatih" selected="">@fatih</option>');
   });
 
   it("renders app shell pulse counts", () => {
@@ -95,7 +104,10 @@ describe("feed components", () => {
     const html = render(<Composer />);
 
     expect(html).toContain("Broadcast as current identity");
+    expect(html).toContain('aria-label="Post content"');
+    expect(html).toContain('aria-label="Composer context"');
     expect(html).toContain("Post signal");
+    expect(html).toContain("disabled");
     expect(html).toContain("0/280");
   });
 
@@ -145,8 +157,14 @@ describe("feed components", () => {
     );
 
     expect(html).toContain("Unknown");
+    expect(html).toContain("@unknown");
+    expect(html).toContain("Quote");
+    expect(html).toContain("Replying to");
     expect(html).toContain("Quoted signal");
     expect(html).toContain("quoted body");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('aria-label="Unlike post"');
+    expect(html).toContain('aria-label="Undo repost"');
     expect(html).toContain("❤️");
     expect(html).toContain("🔄");
   });
@@ -179,8 +197,10 @@ describe("feed components", () => {
     expect(
       render(<UserSelector handle="fatih" users={users} onHandleChange={onHandleChange} />),
     ).toContain("Posting as:");
-    expect(
-      render(<UserSelector handle="fatih" users={users} onHandleChange={onHandleChange} compact />),
-    ).toContain("(agent)");
+    const compactHtml = render(
+      <UserSelector handle="fatih" users={users} onHandleChange={onHandleChange} compact />,
+    );
+    expect(compactHtml).not.toContain("Posting as:");
+    expect(compactHtml).toContain('<option value="scout_ai">@scout_ai (agent)</option>');
   });
 });

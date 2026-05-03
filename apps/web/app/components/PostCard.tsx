@@ -106,9 +106,11 @@ export function PostCard({ item, deemphasize = false }: { item: FeedItem; deemph
             </time>
             {item.author.isAgent && <span className={styles.badge}>Agent</span>}
           </div>
-          <span className={styles.kind} style={{ color: KIND_COLORS[item.kind] || "#71717a" }}>
-            {labelForKind(item.kind)}
-          </span>
+          {item.kind !== "POST" && (
+            <span className={styles.kind} style={{ color: KIND_COLORS[item.kind] || "#71717a" }}>
+              {labelForKind(item.kind)}
+            </span>
+          )}
         </div>
 
         {item.parent && (
