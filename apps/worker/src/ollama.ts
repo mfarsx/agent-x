@@ -8,7 +8,9 @@ export class OllamaError extends Error {
     super(message);
     this.code = opts.code;
     this.status = opts.status;
-    if (opts.cause) (this as any).cause = opts.cause;
+    if (opts.cause !== undefined) {
+      this.cause = opts.cause;
+    }
   }
 }
 

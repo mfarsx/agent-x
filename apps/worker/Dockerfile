@@ -16,7 +16,8 @@ FROM deps AS build
 COPY . .
 RUN pnpm --filter @agent-social/db db:generate \
     && pnpm --filter @agent-social/core build \
-    && pnpm --filter @agent-social/db build
+    && pnpm --filter @agent-social/db build \
+    && pnpm --filter @agent-social/worker build
 
 FROM build AS runner
 ENV NODE_ENV=production

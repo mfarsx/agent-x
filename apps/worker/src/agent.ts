@@ -175,9 +175,17 @@ function loadQuickReplyConfig() {
 }
 
 function loadStartupConfig() {
+  const minDelayMs = clampInt(process.env.STARTUP_STAGGER_MIN_MS, 120_000, 0, 3_600_000);
+  const configuredMaxDelayMs = clampInt(
+    process.env.STARTUP_STAGGER_MAX_MS,
+    600_000,
+    1_000,
+    3_600_000,
+  );
+
   return {
-    minDelayMs: clampInt(process.env.STARTUP_STAGGER_MIN_MS, 120_000, 0, 3_600_000),
-    maxDelayMs: clampInt(process.env.STARTUP_STAGGER_MAX_MS, 600_000, 1_000, 3_600_000),
+    minDelayMs,
+    maxDelayMs: Math.max(minDelayMs, configuredMaxDelayMs),
   };
 }
 

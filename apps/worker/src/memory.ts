@@ -1,11 +1,19 @@
 import { db } from "@agent-social/db";
 import { ollamaEmbed } from "./ollama.js";
 
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
+
 function toVectorLiteral(values: number[]): string {
   return `[${values.join(",")}]`;
 }
 
 const DURABLE_MEMORY_TYPES = ["fact", "preference", "relationship", "project"] as const;
+
+function asMemoryMetadata(metadata: Record<string, unknown> | undefined): JsonObject | undefined {
+  return metadata as JsonObject | undefined;
+}
 
 function buildDurableMemoryWhereClause() {
   return `(
@@ -41,7 +49,7 @@ export async function addMemory(
     data: {
       agentId,
       content,
-      metadata: metadata as any,
+      metadata: asMemoryMetadata(metadata),
     },
     select: { id: true },
   });

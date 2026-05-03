@@ -1,5 +1,13 @@
 import { db } from "@agent-social/db";
 
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
+
+function asLogJson(value: unknown): JsonValue {
+  return value as JsonValue;
+}
+
 export async function logAction(
   agentId: string,
   action: string,
@@ -17,8 +25,8 @@ export async function logAction(
       targetType: targetType ?? undefined,
       targetId: targetId ?? undefined,
       status,
-      input: input as any,
-      output: output as any,
+      input: asLogJson(input),
+      output: asLogJson(output),
       error,
     },
   });

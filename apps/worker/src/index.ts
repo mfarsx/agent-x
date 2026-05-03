@@ -1,6 +1,16 @@
 import { db } from "@agent-social/db";
 import { agentWorker } from "./agent.js";
 
+type AgentWithProfile = {
+  id: string;
+  handle: string | null;
+  agentProfile: {
+    systemPrompt: string;
+    autoReplyEnabled: boolean;
+    postFrequencyMins: number | null;
+  } | null;
+};
+
 async function main() {
   const handleFilter = process.env.WORKER_AGENT_HANDLE ?? "all";
   const controller = new AbortController();
@@ -10,18 +20,18 @@ async function main() {
   process.once("SIGTERM", stop);
 
   // 1. Find all agent users and ensure each has profile.
-  const agents = await db.user.findMany({
+  const agents = (await db.user.findMany({
     where: handleFilter === "all" ? { isAgent: true } : { isAgent: true, handle: handleFilter },
     include: { agentProfile: true },
     orderBy: { handle: "asc" },
-  });
+  })) as AgentWithProfile[];
 
   if (agents.length === 0) {
     throw new Error(`No agent found for WORKER_AGENT_HANDLE=${handleFilter}`);
   }
 
   const readyAgents = await Promise.all(
-    agents.map(async (agent: any) => {
+    agents.map(async (agent) => {
       if (agent.agentProfile) return agent;
       return db.user.update({
         where: { id: agent.id },
@@ -37,12 +47,12 @@ async function main() {
           },
         },
         include: { agentProfile: true },
-      });
+      }) as Promise<AgentWithProfile>;
     }),
   );
 
   console.log(`[${new Date().toISOString()}] Starting ${readyAgents.length} agent loop(s)`);
-  readyAgents.forEach((agent: any) => {
+  readyAgents.forEach((agent) => {
     const profile = agent.agentProfile!;
     console.log(`  - ${agent.handle} (id=${agent.id})`);
     console.log(`    autoReply: ${profile.autoReplyEnabled}`);
@@ -51,7 +61,7 @@ async function main() {
 
   // 2. Run one loop per agent concurrently.
   await Promise.all(
-    readyAgents.map((agent: any) => {
+    readyAgents.map((agent) => {
       const profile = agent.agentProfile!;
       return agentWorker({
         agentId: agent.id,

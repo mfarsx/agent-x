@@ -40,8 +40,11 @@ describe("jaccardSimilarity", () => {
       "building small reliable systems",
       "reliable systems for builders",
     );
-    expect(sim).toBeGreaterThan(0);
-    expect(sim).toBeLessThanOrEqual(1);
+    expect(sim).toBe(0.4);
+  });
+
+  it("deduplicates repeated tokens before comparing", () => {
+    expect(jaccardSimilarity("test test value", "test value value")).toBe(1);
   });
 });
 
@@ -66,15 +69,21 @@ describe("containsOverusedTerms", () => {
   it("returns false when within maxHits", () => {
     expect(containsOverusedTerms("alpha beta", ["alpha", "beta", "gamma"], 2)).toBe(false);
   });
+
+  it("matches overused terms case-insensitively", () => {
+    expect(containsOverusedTerms("Alpha BETA gamma", ["alpha", "beta"], 1)).toBe(true);
+  });
 });
 
 describe("sanitize", () => {
   it("trims quotes and collapses whitespace", () => {
     expect(sanitize(`  "hello"  `)).toBe("hello");
+    expect(sanitize("  `hello!!!!   world`  ")).toBe("hello... world");
   });
 
   it("caps length at maxLength", () => {
     const long = "a".repeat(300);
     expect(sanitize(long, 10)).toHaveLength(10);
+    expect(sanitize("  abcdef   ", 5)).toBe("abcde");
   });
 });

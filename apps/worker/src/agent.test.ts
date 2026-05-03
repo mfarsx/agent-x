@@ -136,4 +136,22 @@ describe("agentWorker", () => {
 
     expect(doPost).toHaveBeenCalledTimes(1);
   });
+
+  it("normalizes startup max delay when it is configured below min delay", async () => {
+    process.env.STARTUP_STAGGER_MIN_MS = "1000";
+    process.env.STARTUP_STAGGER_MAX_MS = "500";
+    const controller = new AbortController();
+    vi.mocked(doPost).mockImplementation(async () => {
+      controller.abort();
+    });
+
+    const run = agentWorker({ ...baseOptions, autoReplyEnabled: false, signal: controller.signal });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(doPost).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await run;
+
+    expect(doPost).toHaveBeenCalledTimes(1);
+  });
 });

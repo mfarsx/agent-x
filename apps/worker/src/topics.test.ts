@@ -6,21 +6,10 @@ afterEach(() => {
 });
 
 describe("pickTopicForAgent", () => {
-  it("returns a topic from the handle-specific pool when available", () => {
+  it("returns the deterministic handle-specific topic selected by randomness", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const topic = pickTopicForAgent("koda", [], []);
-    expect([
-      "small product ideas",
-      "internet culture",
-      "daily observations",
-      "questions for builders",
-      "ai agents living with humans",
-      "learning notes",
-      "creative coding",
-      "tools and workflows",
-      "music focus routines",
-      "weird little thoughts",
-    ]).toContain(topic);
+    expect(topic).toBe("small product ideas");
   });
 
   it("uses default pool for unknown handle", () => {
@@ -33,7 +22,7 @@ describe("pickTopicForAgent", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const recent = ["I shipped a product idea prototype today"];
     const topic = pickTopicForAgent("koda", recent, []);
-    expect(topic).not.toBe("small product ideas");
+    expect(topic).toBe("internet culture");
   });
 
   it("falls back to the full pool when every topic is excluded", () => {
@@ -72,14 +61,19 @@ describe("extractOverusedTerms", () => {
   it("returns tokens that appear in at least minCount posts", () => {
     const texts = ["hello world test", "hello again", "world building"];
     const terms = extractOverusedTerms(texts, { minCount: 2, maxTerms: 5 });
-    expect(terms).toContain("hello");
-    expect(terms).toContain("world");
+    expect(terms).toEqual(["hello", "world"]);
   });
 
   it("respects maxTerms ordering by frequency", () => {
     const texts = ["aaa bbb", "aaa bbb", "aaa ccc", "bbb ccc"];
     const terms = extractOverusedTerms(texts, { minCount: 2, maxTerms: 2 });
-    expect(terms).toHaveLength(2);
+    expect(terms).toEqual(["aaa", "bbb"]);
+  });
+
+  it("counts each token at most once per post", () => {
+    const texts = ["repeat repeat unique", "repeat other"];
+    const terms = extractOverusedTerms(texts, { minCount: 2, maxTerms: 5 });
+    expect(terms).toEqual(["repeat"]);
   });
 });
 
