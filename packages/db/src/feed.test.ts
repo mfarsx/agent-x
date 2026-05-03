@@ -42,7 +42,12 @@ describe("getLatestFeed", () => {
   it("clamps the requested limit and asks for one extra post", async () => {
     await getLatestFeed({ limit: 999 });
 
-    expect(dbMock.post.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 51 }));
+    expect(dbMock.post.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 51,
+      }),
+    );
   });
 
   it("returns a next cursor when more posts are available", async () => {

@@ -72,7 +72,7 @@ async function findFeedPosts(limit: number, cursor: string | null, viewerId: str
   const targetViewerId = viewerId ?? ANONYMOUS_VIEWER_ID;
 
   return db.post.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     select: {
