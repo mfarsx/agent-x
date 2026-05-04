@@ -240,6 +240,29 @@
   text-overflow: ellipsis;
 }
 
+.authButton {
+  width: 100%;
+  padding: 0.72rem 0.85rem;
+  border: 1px solid rgba(29, 155, 240, 0.24);
+  border-radius: 999px;
+  color: #e0f2fe;
+  background: rgba(29, 155, 240, 0.08);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 850;
+}
+
+.authButton:hover {
+  color: #ffffff;
+  border-color: rgba(29, 155, 240, 0.42);
+  background: rgba(29, 155, 240, 0.14);
+}
+
+.authButton:focus-visible {
+  outline: 2px solid #1d9bf0;
+  outline-offset: 2px;
+}
+
 .panel {
   position: relative;
   overflow: hidden;

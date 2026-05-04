@@ -82,6 +82,18 @@ describe("OperatorPage", () => {
     expect(getOperatorDashboard).not.toHaveBeenCalled();
   });
 
+  it("renders an operator-required message for forbidden actors", async () => {
+    vi.mocked(requireOperatorAccess).mockResolvedValue({
+      actor: null,
+      response: NextResponse.json({ error: "operator_forbidden" }, { status: 403 }),
+    });
+
+    const element = await OperatorPage();
+
+    expect(JSON.stringify(element)).toContain("Operator access required");
+    expect(getOperatorDashboard).not.toHaveBeenCalled();
+  });
+
   it("returns not found when the operator UI is disabled", async () => {
     vi.mocked(requireOperatorAccess).mockResolvedValue({
       actor: null,

@@ -316,6 +316,79 @@ describe("FeedShell interactions", () => {
   });
 });
 
+describe("ProfileShell interactions", () => {
+  function profileFixture() {
+    return {
+      handle: "scout_ai",
+      name: "Scout",
+      image: null,
+      isAgent: true,
+      bio: "Agent profile",
+      joinedAt: "2026-01-01T00:00:00.000Z",
+      viewer: { following: false },
+      stats: {
+        posts: 1,
+        replies: 0,
+        likesGiven: 0,
+        repostsGiven: 0,
+        followers: 2,
+        following: 1,
+      },
+    };
+  }
+
+  function stubProfileGlobals() {
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      setInterval: vi.fn(() => 0),
+      clearInterval: vi.fn(),
+      location: { origin: "http://localhost" },
+    });
+    vi.stubGlobal("document", { visibilityState: "visible" as const });
+    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+  }
+
+  it("updates follow state and copies profile links", async () => {
+    stubProfileGlobals();
+    const setters = mockReactState(["posts", [], null, false, false, null, false, 2, null, null]);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ active: true, followers: 3 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { ProfileShell } = await import("./ProfileShell");
+
+    const tree = ProfileShell({
+      profile: profileFixture(),
+      initialFeed: [],
+      initialCursor: null,
+      initialActivity: { likes: [], reposts: [] },
+      currentHandle: "fatih",
+      authenticated: true,
+    }) as ElementNode;
+
+    await (
+      requireElement(tree, (node) => textOf(node) === "Follow").props
+        ?.onClick as () => Promise<void>
+    )();
+    await fetchMock.mock.results.at(-1)?.value;
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledWith("/api/profile/scout_ai/follow", { method: "POST" });
+    expect(setters[6]).toHaveBeenLastCalledWith(true);
+    expect(setters[7]).toHaveBeenLastCalledWith(3);
+
+    await (
+      requireElement(tree, (node) => node.props?.["aria-label"] === "Copy profile link").props
+        ?.onClick as () => Promise<void>
+    )();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("http://localhost/u/scout_ai");
+    expect(setters[9]).toHaveBeenCalledWith("Profile link copied.");
+  });
+});
+
 describe("PostCard interactions", () => {
   it("updates local like state from the API and handles failures", async () => {
     let setters = mockReactState([false, false, 0, 0, false, null, null]);
@@ -452,5 +525,127 @@ describe("HandleSwitcher interactions", () => {
 
     expect(setters[0]).toHaveBeenLastCalledWith("fatih");
     expect(routerRefresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("web UI smoke: critical social actions", () => {
+  it("covers posting, engagement, thread navigation, and reply refresh contracts", async () => {
+    const dispatchEventSpy = vi.fn(() => true);
+    vi.stubGlobal("window", {
+      dispatchEvent: dispatchEventSpy,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      setInterval: vi.fn(() => 0),
+      clearInterval: vi.fn(),
+      location: { origin: "http://localhost" },
+    });
+
+    let setters = mockReactState(["  smoke post  ", null, false]);
+    let fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    let { Composer } = await import("./Composer");
+
+    await (
+      (Composer() as ElementNode).props?.onSubmit as (event: {
+        preventDefault: () => void;
+      }) => Promise<void>
+    )({ preventDefault: vi.fn() });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "smoke post" }),
+    });
+    expect(setters[0]).toHaveBeenCalledWith("");
+    const refetchEvent = dispatchEventSpy.mock.calls.at(0)?.at(0) as unknown as Event;
+    expect(refetchEvent.type).toBe(FEED_REFETCH_EVENT);
+
+    vi.resetModules();
+    const smokeItem = itemFixture({
+      id: "smoke-post",
+      content: "smoke post",
+      counts: { likes: 0, reposts: 0, replies: 0 },
+    });
+    setters = mockReactState([false, false, 0, 0, false, null, null]);
+    fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ active: true, count: 1 }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ active: true, count: 1 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { PostCard } = await import("./PostCard");
+    const postCard = PostCard({ item: smokeItem }) as ElementNode;
+
+    await (
+      requireElement(postCard, (node) => node.props?.["aria-label"] === "Like post").props
+        ?.onClick as () => Promise<void>
+    )();
+    await (
+      requireElement(postCard, (node) => node.props?.["aria-label"] === "Repost").props
+        ?.onClick as () => Promise<void>
+    )();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/likes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: "smoke-post" }),
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/reposts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: "smoke-post" }),
+    });
+    expect(setters[0]).toHaveBeenCalledWith(true);
+    expect(setters[1]).toHaveBeenCalledWith(true);
+    expect(setters[2]).toHaveBeenCalledWith(1);
+    expect(setters[3]).toHaveBeenCalledWith(1);
+    expect(
+      requireElement(postCard, (node) => node.props?.["aria-label"] === "Open thread to reply")
+        .props?.href,
+    ).toBe("/post/smoke-post");
+
+    vi.resetModules();
+    const initialThread = { parent: null, post: smokeItem, replies: [] };
+    const refreshedThread = {
+      ...initialThread,
+      replies: [itemFixture({ id: "smoke-reply", kind: "REPLY", content: "smoke reply" })],
+    };
+    setters = mockReactState([initialThread, null]);
+    fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => refreshedThread });
+    vi.stubGlobal("fetch", fetchMock);
+    const { ThreadShell } = await import("./ThreadShell");
+    const thread = ThreadShell({ initialThread }) as ElementNode;
+
+    (
+      requireElement(
+        thread,
+        (node) => typeof node.type === "function" && node.type.name === "Composer",
+      ).props?.onPosted as () => void
+    )();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts/smoke-post/thread");
+    expect(setters[0]).toHaveBeenCalledWith(refreshedThread);
+
+    vi.resetModules();
+    const onPosted = vi.fn();
+    setters = mockReactState(["  smoke reply  ", null, false]);
+    fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    ({ Composer } = await import("./Composer"));
+
+    await (
+      (Composer({ parentId: "smoke-post", onPosted }) as ElementNode).props?.onSubmit as (event: {
+        preventDefault: () => void;
+      }) => Promise<void>
+    )({ preventDefault: vi.fn() });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "smoke reply", parentId: "smoke-post" }),
+    });
+    expect(setters[0]).toHaveBeenCalledWith("");
+    expect(onPosted).toHaveBeenCalledOnce();
   });
 });

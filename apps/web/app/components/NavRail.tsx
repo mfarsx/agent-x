@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { KnownUser } from "@agent-social/db";
 import styles from "./app-shell.module.css";
+import { AuthControls } from "./AuthControls";
 import { Brand } from "./Brand";
 import { HandleSwitcher } from "./HandleSwitcher";
 
@@ -21,11 +22,13 @@ function navItems(handle: string, operatorUiEnabled: boolean) {
 }
 
 export function NavRail({
+  authenticated,
   currentHandle,
   demoIdentityEnabled,
   operatorUiEnabled,
   users,
 }: {
+  authenticated: boolean;
   currentHandle: string;
   demoIdentityEnabled: boolean;
   operatorUiEnabled: boolean;
@@ -63,6 +66,7 @@ export function NavRail({
           <span className={styles.navCardLabel}>Posting identity</span>
           <strong>@{currentHandle}</strong>
         </div>
+        <AuthControls authenticated={authenticated} />
         {demoIdentityEnabled && <HandleSwitcher initialHandle={currentHandle} users={users} />}
       </div>
     </div>

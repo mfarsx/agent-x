@@ -62,19 +62,26 @@ function snippet(text: string | null, max = 160): string {
 
 type TabKey = "posts" | "activity";
 
+type ProfileAction = "follow" | "share";
+
 export function ProfileShell({
   profile,
   initialFeed,
   initialCursor,
   initialActivity,
+  currentHandle,
+  authenticated,
 }: {
   profile: PublicProfile;
   initialFeed: FeedItem[];
   initialCursor: string | null;
   initialActivity: ProfileActivity;
+  currentHandle: string;
+  authenticated: boolean;
 }) {
   const handle = profile.handle;
   const profileFeedUrl = `/api/profile/${encodeURIComponent(handle)}/feed`;
+  const canFollow = authenticated && currentHandle.toLowerCase() !== handle.toLowerCase();
 
   const [tab, setTab] = useState<TabKey>("posts");
   const [items, setItems] = useState<FeedItem[]>(initialFeed);
@@ -82,6 +89,10 @@ export function ProfileShell({
   const [hasLoadedMore, setHasLoadedMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [following, setFollowing] = useState(profile.viewer.following);
+  const [followers, setFollowers] = useState(profile.stats.followers);
+  const [pendingAction, setPendingAction] = useState<ProfileAction | null>(null);
+  const [profileActionMessage, setProfileActionMessage] = useState<string | null>(null);
 
   const refetchPosts = useCallback(async () => {
     try {
@@ -103,7 +114,10 @@ export function ProfileShell({
     setItems(initialFeed);
     setCursor(initialCursor);
     setHasLoadedMore(false);
-  }, [initialFeed, initialCursor]);
+    setFollowing(profile.viewer.following);
+    setFollowers(profile.stats.followers);
+    setProfileActionMessage(null);
+  }, [initialFeed, initialCursor, profile.viewer.following, profile.stats.followers]);
 
   useEffect(() => {
     const onGlobalFeedPosted = () => {
@@ -144,6 +158,43 @@ export function ProfileShell({
     }
   }
 
+  async function toggleFollow() {
+    if (!canFollow || pendingAction) return;
+    setPendingAction("follow");
+    setProfileActionMessage(null);
+    try {
+      const res = await fetch(`/api/profile/${encodeURIComponent(handle)}/follow`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        setProfileActionMessage("Could not update follow state. Please try again.");
+        return;
+      }
+      const data = (await res.json()) as { active: boolean; followers: number };
+      setFollowing(data.active);
+      setFollowers(data.followers);
+    } catch {
+      setProfileActionMessage("Could not update follow state. Please try again.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function copyProfileLink() {
+    if (pendingAction) return;
+    setPendingAction("share");
+    setProfileActionMessage(null);
+    const url = `${window.location.origin}/u/${encodeURIComponent(handle)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setProfileActionMessage("Profile link copied.");
+    } catch {
+      setProfileActionMessage("Could not copy profile link.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   const activityEmpty = initialActivity.likes.length === 0 && initialActivity.reposts.length === 0;
 
   return (
@@ -165,8 +216,34 @@ export function ProfileShell({
             )}
           </div>
           <div className={styles.meta}>
-            <h1 className={styles.displayName}>{profile.name ?? `@${profile.handle}`}</h1>
-            <p className={styles.handleLine}>@{profile.handle}</p>
+            <div className={styles.titleRow}>
+              <div className={styles.titleText}>
+                <h1 className={styles.displayName}>{profile.name ?? `@${profile.handle}`}</h1>
+                <p className={styles.handleLine}>@{profile.handle}</p>
+              </div>
+              <div className={styles.actions}>
+                {canFollow && (
+                  <button
+                    type="button"
+                    className={`${styles.actionButton} ${following ? styles.actionButtonActive : ""}`.trim()}
+                    onClick={() => void toggleFollow()}
+                    disabled={pendingAction === "follow"}
+                    aria-pressed={following}
+                  >
+                    {pendingAction === "follow" ? "Updating…" : following ? "Following" : "Follow"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={styles.actionButtonSecondary}
+                  onClick={() => void copyProfileLink()}
+                  disabled={pendingAction === "share"}
+                  aria-label="Copy profile link"
+                >
+                  Share
+                </button>
+              </div>
+            </div>
             {profile.bio && <p className={styles.bio}>{profile.bio}</p>}
             <div className={styles.badges}>
               {profile.isAgent && <span className={styles.badge}>Agent</span>}
@@ -185,7 +262,18 @@ export function ProfileShell({
               <span className={styles.stat}>
                 <strong>{profile.stats.repostsGiven}</strong> reposts
               </span>
+              <span className={styles.stat}>
+                <strong>{followers}</strong> followers
+              </span>
+              <span className={styles.stat}>
+                <strong>{profile.stats.following}</strong> following
+              </span>
             </div>
+            {profileActionMessage && (
+              <p className={styles.actionMessage} role="status">
+                {profileActionMessage}
+              </p>
+            )}
           </div>
         </div>
       </header>

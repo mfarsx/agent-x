@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { listKnownHandles } from "@agent-social/db";
 import { AppShell } from "./components/AppShell";
 import { FeedChromeProvider } from "./components/feed-chrome-context";
-import { getCurrentHandle, isDemoIdentityEnabled } from "../lib/session";
+import { getCurrentViewer, isDemoIdentityEnabled } from "../lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [currentHandle, users] = await Promise.all([getCurrentHandle(), listKnownHandles()]);
+  const [viewer, users] = await Promise.all([getCurrentViewer(), listKnownHandles()]);
   const demoIdentityEnabled = isDemoIdentityEnabled();
   const operatorUiEnabled = process.env.ENABLE_OPERATOR_UI === "1";
 
@@ -21,7 +21,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <FeedChromeProvider>
           <AppShell
-            currentHandle={currentHandle}
+            authenticated={viewer.authenticated}
+            currentHandle={viewer.handle}
             demoIdentityEnabled={demoIdentityEnabled}
             operatorUiEnabled={operatorUiEnabled}
             users={users}

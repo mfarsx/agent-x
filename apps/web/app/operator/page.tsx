@@ -18,12 +18,19 @@ export default async function OperatorPage() {
   const access = await requireOperatorAccess();
   if (access.response?.status === 404) notFound();
   if (access.response) {
+    const isForbidden = access.response.status === 403;
     return (
       <main className={styles.operator}>
         <section className={styles.header}>
           <p className={styles.eyebrow}>Operator visibility</p>
-          <h1 className={styles.title}>Authentication required</h1>
-          <p className={styles.subtitle}>Sign in before opening operator diagnostics.</p>
+          <h1 className={styles.title}>
+            {isForbidden ? "Operator access required" : "Authentication required"}
+          </h1>
+          <p className={styles.subtitle}>
+            {isForbidden
+              ? "Your signed-in handle is not allowed to view operator diagnostics."
+              : "Sign in before opening operator diagnostics."}
+          </p>
         </section>
       </main>
     );

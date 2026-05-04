@@ -11,11 +11,16 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next-auth/react", () => ({
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+}));
+
 const routerRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(() => "/"),
-  useRouter: vi.fn(() => ({ refresh: routerRefresh })),
+  useRouter: vi.fn(() => ({ push: vi.fn(), refresh: routerRefresh })),
 }));
 
 vi.mock("./feed-chrome-context", () => ({
@@ -37,9 +42,11 @@ import { Brand } from "./Brand";
 import { Composer } from "./Composer";
 import { FeedShell } from "./FeedShell";
 import { HandleSwitcher } from "./HandleSwitcher";
+import { HandleClaimPanel } from "../onboarding/handle/handle-claim-panel";
 import { MobileHeader } from "./MobileHeader";
 import { NavRail } from "./NavRail";
 import { PostCard } from "./PostCard";
+import { ProfileShell } from "./ProfileShell";
 import { ThreadShell } from "./ThreadShell";
 import { UserSelector } from "./UserSelector";
 
@@ -88,10 +95,17 @@ describe("web shell components", () => {
 
   it("renders navigation and mobile shell identity controls", () => {
     const navHtml = render(
-      <NavRail currentHandle="fatih" demoIdentityEnabled operatorUiEnabled={false} users={users} />,
+      <NavRail
+        authenticated
+        currentHandle="fatih"
+        demoIdentityEnabled
+        operatorUiEnabled={false}
+        users={users}
+      />,
     );
     const mobileHtml = render(
       <MobileHeader
+        authenticated
         currentHandle="fatih"
         demoIdentityEnabled
         operatorUiEnabled={false}
@@ -103,6 +117,7 @@ describe("web shell components", () => {
     expect(navHtml).toContain('aria-label="Primary"');
     expect(navHtml).toContain('aria-current="page"');
     expect(navHtml).toContain("Posting identity");
+    expect(navHtml).toContain("Sign out");
     expect(mobileHtml).toContain("Agent X");
     expect(mobileHtml).toContain("@scout_ai");
     expect(switcherHtml).toContain('aria-label="Posting as"');
@@ -111,7 +126,13 @@ describe("web shell components", () => {
 
   it("renders app shell pulse counts", () => {
     const html = render(
-      <AppShell currentHandle="fatih" demoIdentityEnabled operatorUiEnabled={false} users={users}>
+      <AppShell
+        authenticated
+        currentHandle="fatih"
+        demoIdentityEnabled
+        operatorUiEnabled={false}
+        users={users}
+      >
         <section>Timeline</section>
       </AppShell>,
     );
@@ -125,6 +146,7 @@ describe("web shell components", () => {
   it("hides demo identity controls when demo identity is disabled", () => {
     const navHtml = render(
       <NavRail
+        authenticated={false}
         currentHandle="fatih"
         demoIdentityEnabled={false}
         operatorUiEnabled={false}
@@ -133,6 +155,7 @@ describe("web shell components", () => {
     );
     const mobileHtml = render(
       <MobileHeader
+        authenticated={false}
         currentHandle="fatih"
         demoIdentityEnabled={false}
         operatorUiEnabled={false}
@@ -141,9 +164,20 @@ describe("web shell components", () => {
     );
 
     expect(navHtml).toContain("Posting identity");
+    expect(navHtml).toContain("Sign in");
     expect(navHtml).not.toContain('aria-label="Posting as"');
     expect(mobileHtml).toContain("Agent X");
     expect(mobileHtml).not.toContain('aria-label="Posting as"');
+  });
+
+  it("renders the handle claiming onboarding form", () => {
+    const html = render(<HandleClaimPanel suggestedHandle="New User@example.com" />);
+
+    expect(html).toContain("Claim your Agent X handle");
+    expect(html).toContain('value="new_user"');
+    expect(html).toContain('pattern="[a-zA-Z0-9_]{1,32}"');
+    expect(html).toContain("Claim handle");
+    expect(html).toContain("Use 1–32 letters, numbers, or underscores.");
   });
 });
 
@@ -179,6 +213,42 @@ describe("feed components", () => {
 
     expect(html).toContain("Load more");
     expect(html).toContain("same start one");
+  });
+
+  it("renders profile actions and follower stats", () => {
+    const html = render(
+      <ProfileShell
+        profile={{
+          handle: "scout_ai",
+          name: "Scout",
+          image: null,
+          isAgent: true,
+          bio: "Agent profile",
+          joinedAt: "2026-01-01T00:00:00.000Z",
+          viewer: { following: false },
+          stats: {
+            posts: 4,
+            replies: 1,
+            likesGiven: 2,
+            repostsGiven: 3,
+            followers: 5,
+            following: 6,
+          },
+        }}
+        initialFeed={[]}
+        initialCursor={null}
+        initialActivity={{ likes: [], reposts: [] }}
+        currentHandle="fatih"
+        authenticated
+      />,
+    );
+
+    expect(html).toContain("Scout");
+    expect(html).toContain("Agent profile");
+    expect(html).toContain("Follow");
+    expect(html).toContain('aria-label="Copy profile link"');
+    expect(html).toContain("5</strong> followers");
+    expect(html).toContain("6</strong> following");
   });
 
   it("renders post context, quoted content, fallback author, and active actions", () => {

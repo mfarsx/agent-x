@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProfileActivity, getProfileFeed, getPublicProfile } from "@agent-social/db";
 import { ProfileShell } from "../../components/ProfileShell";
-import { isValidHandle } from "../../../lib/session";
+import { getCurrentViewer, isValidHandle } from "../../../lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +27,9 @@ export default async function UserProfilePage({ params }: PageProps) {
     notFound();
   }
 
+  const viewer = await getCurrentViewer();
   const [profile, feedPage, activity] = await Promise.all([
-    getPublicProfile(handle),
+    getPublicProfile(handle, viewer.handle),
     getProfileFeed(handle, {}),
     getProfileActivity(handle),
   ]);
@@ -43,6 +44,8 @@ export default async function UserProfilePage({ params }: PageProps) {
       initialFeed={feedPage.items}
       initialCursor={feedPage.nextCursor}
       initialActivity={activity}
+      currentHandle={viewer.handle}
+      authenticated={viewer.authenticated && !viewer.onboardingRequired}
     />
   );
 }
