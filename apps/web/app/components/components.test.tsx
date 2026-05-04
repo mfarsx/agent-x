@@ -18,6 +18,20 @@ vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ refresh: routerRefresh })),
 }));
 
+vi.mock("./feed-chrome-context", () => ({
+  FeedChromeProvider: ({ children }: { children: ReactNode }) => children,
+  useFeedChrome: () => ({
+    summary: null,
+    onRefresh: null,
+    setFeedChrome: vi.fn(),
+    clearFeedChrome: vi.fn(),
+    homeFeedFilter: { kind: "all" as const },
+    setHomeFeedFilter: vi.fn(),
+    homeFeedSearch: "",
+    setHomeFeedSearch: vi.fn(),
+  }),
+}));
+
 import { AppShell } from "./AppShell";
 import { Brand } from "./Brand";
 import { Composer } from "./Composer";
@@ -26,6 +40,7 @@ import { HandleSwitcher } from "./HandleSwitcher";
 import { MobileHeader } from "./MobileHeader";
 import { NavRail } from "./NavRail";
 import { PostCard } from "./PostCard";
+import { ThreadShell } from "./ThreadShell";
 import { UserSelector } from "./UserSelector";
 
 const users: KnownUser[] = [
@@ -52,7 +67,7 @@ function feedItem(overrides: Partial<FeedItem> = {}): FeedItem {
     },
     parent: null,
     quotedPost: null,
-    counts: { likes: 2, reposts: 1 },
+    counts: { likes: 2, reposts: 1, replies: 0 },
     viewer: { liked: true, reposted: false },
     ...overrides,
   };
@@ -72,8 +87,17 @@ describe("web shell components", () => {
   });
 
   it("renders navigation and mobile shell identity controls", () => {
-    const navHtml = render(<NavRail currentHandle="fatih" users={users} />);
-    const mobileHtml = render(<MobileHeader currentHandle="fatih" users={users} />);
+    const navHtml = render(
+      <NavRail currentHandle="fatih" demoIdentityEnabled operatorUiEnabled={false} users={users} />,
+    );
+    const mobileHtml = render(
+      <MobileHeader
+        currentHandle="fatih"
+        demoIdentityEnabled
+        operatorUiEnabled={false}
+        users={users}
+      />,
+    );
     const switcherHtml = render(<HandleSwitcher initialHandle="fatih" users={users} />);
 
     expect(navHtml).toContain('aria-label="Primary"');
@@ -87,7 +111,7 @@ describe("web shell components", () => {
 
   it("renders app shell pulse counts", () => {
     const html = render(
-      <AppShell currentHandle="fatih" users={users}>
+      <AppShell currentHandle="fatih" demoIdentityEnabled operatorUiEnabled={false} users={users}>
         <section>Timeline</section>
       </AppShell>,
     );
@@ -96,6 +120,30 @@ describe("web shell components", () => {
     expect(html).toContain("Agent network online");
     expect(html).toContain("agents");
     expect(html).toContain("humans");
+  });
+
+  it("hides demo identity controls when demo identity is disabled", () => {
+    const navHtml = render(
+      <NavRail
+        currentHandle="fatih"
+        demoIdentityEnabled={false}
+        operatorUiEnabled={false}
+        users={users}
+      />,
+    );
+    const mobileHtml = render(
+      <MobileHeader
+        currentHandle="fatih"
+        demoIdentityEnabled={false}
+        operatorUiEnabled={false}
+        users={users}
+      />,
+    );
+
+    expect(navHtml).toContain("Posting identity");
+    expect(navHtml).not.toContain('aria-label="Posting as"');
+    expect(mobileHtml).toContain("Agent X");
+    expect(mobileHtml).not.toContain('aria-label="Posting as"');
   });
 });
 
@@ -114,7 +162,7 @@ describe("feed components", () => {
   it("renders an empty feed", () => {
     const html = render(<FeedShell initialFeed={[]} initialCursor={null} />);
 
-    expect(html).toContain("Home timeline");
+    expect(html).toContain("Home");
     expect(html).toContain("No posts yet");
   });
 
@@ -129,7 +177,6 @@ describe("feed components", () => {
       />,
     );
 
-    expect(html).toContain("2 visible");
     expect(html).toContain("Load more");
     expect(html).toContain("same start one");
   });
@@ -165,8 +212,33 @@ describe("feed components", () => {
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('aria-label="Unlike post"');
     expect(html).toContain('aria-label="Undo repost"');
-    expect(html).toContain("❤️");
-    expect(html).toContain("🔄");
+    expect(html).toContain('aria-label="Open thread to reply"');
+    expect(html).toContain('href="/post/post-1"');
+    expect(html).toContain('aria-label="Views not tracked yet"');
+    expect(html).toContain("<svg");
+  });
+
+  it("renders a thread with a reply composer and replies", () => {
+    const html = render(
+      <ThreadShell
+        initialThread={{
+          parent: feedItem({ id: "parent-1", content: "Parent post" }),
+          post: feedItem({
+            id: "post-1",
+            content: "Thread root",
+            counts: { likes: 0, reposts: 0, replies: 1 },
+          }),
+          replies: [feedItem({ id: "reply-1", kind: "REPLY", content: "Reply body" })],
+        }}
+      />,
+    );
+
+    expect(html).toContain("Thread");
+    expect(html).toContain("Parent post");
+    expect(html).toContain("Thread root");
+    expect(html).toContain("Reply body");
+    expect(html).toContain("Replying to @scout_ai");
+    expect(html).toContain("Reply");
   });
 
   it("renders image avatars and day-level relative time", () => {

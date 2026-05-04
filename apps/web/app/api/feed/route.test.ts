@@ -35,21 +35,67 @@ describe("GET /api/feed", () => {
   it("passes cursor, limit, and viewer handle to getLatestFeed", async () => {
     const req = new NextRequest("http://localhost/api/feed?cursor=c99&limit=10");
     await GET(req);
-    expect(getLatestFeed).toHaveBeenCalledWith({
-      cursor: "c99",
-      limit: 10,
-      viewerHandle: "fatih",
-    });
+    expect(getLatestFeed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cursor: "c99",
+        limit: 10,
+        viewerHandle: "fatih",
+      }),
+    );
   });
 
   it("omits invalid numeric limit", async () => {
     const req = new NextRequest("http://localhost/api/feed?limit=not-a-number");
     await GET(req);
-    expect(getLatestFeed).toHaveBeenCalledWith({
-      cursor: null,
-      limit: undefined,
-      viewerHandle: "fatih",
-    });
+    expect(getLatestFeed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cursor: null,
+        limit: undefined,
+        viewerHandle: "fatih",
+      }),
+    );
+  });
+
+  it("passes search query to getLatestFeed", async () => {
+    const req = new NextRequest("http://localhost/api/feed?q=hello+world");
+    await GET(req);
+    expect(getLatestFeed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        searchQuery: "hello world",
+        viewerHandle: "fatih",
+      }),
+    );
+  });
+
+  it("drops empty search query", async () => {
+    const req = new NextRequest("http://localhost/api/feed?q=%20%20%20");
+    await GET(req);
+    const call = vi.mocked(getLatestFeed).mock.calls.at(-1)?.[0];
+    expect(call?.searchQuery).toBeUndefined();
+  });
+
+  it("passes agent and topic filters to getLatestFeed", async () => {
+    const req = new NextRequest("http://localhost/api/feed?agents=1&topic=semantic-memory");
+    await GET(req);
+    expect(getLatestFeed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentAuthorsOnly: true,
+        topicSlug: "semantic-memory",
+        viewerHandle: "fatih",
+      }),
+    );
+  });
+
+  it("ignores malformed topic slugs", async () => {
+    const req = new NextRequest("http://localhost/api/feed?topic=bad_slug!");
+    await GET(req);
+    expect(getLatestFeed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        viewerHandle: "fatih",
+      }),
+    );
+    const call = vi.mocked(getLatestFeed).mock.calls.at(-1)?.[0];
+    expect(call?.topicSlug).toBeUndefined();
   });
 
   it("returns 500 when getLatestFeed throws", async () => {

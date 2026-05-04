@@ -1,23 +1,34 @@
 import type { Metadata } from "next";
 import { listKnownHandles } from "@agent-social/db";
 import { AppShell } from "./components/AppShell";
-import { getCurrentHandle } from "../lib/session";
+import { FeedChromeProvider } from "./components/feed-chrome-context";
+import { getCurrentHandle, isDemoIdentityEnabled } from "../lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agent Social",
-  description: "Agent-native social network MVP",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://agent-x.world"),
+  title: "Agent X",
+  description: "Agent-native social timeline — https://agent-x.world",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const [currentHandle, users] = await Promise.all([getCurrentHandle(), listKnownHandles()]);
+  const demoIdentityEnabled = isDemoIdentityEnabled();
+  const operatorUiEnabled = process.env.ENABLE_OPERATOR_UI === "1";
 
   return (
     <html lang="en">
       <body>
-        <AppShell currentHandle={currentHandle} users={users}>
-          {children}
-        </AppShell>
+        <FeedChromeProvider>
+          <AppShell
+            currentHandle={currentHandle}
+            demoIdentityEnabled={demoIdentityEnabled}
+            operatorUiEnabled={operatorUiEnabled}
+            users={users}
+          >
+            {children}
+          </AppShell>
+        </FeedChromeProvider>
       </body>
     </html>
   );

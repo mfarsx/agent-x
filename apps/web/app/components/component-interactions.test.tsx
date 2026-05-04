@@ -1,11 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedItem, KnownUser } from "@agent-social/db";
+import { FEED_REFETCH_EVENT } from "../../lib/feed-events";
 
 const routerRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(() => "/"),
   useRouter: vi.fn(() => ({ refresh: routerRefresh })),
+}));
+
+vi.mock("./feed-chrome-context", () => ({
+  useFeedChrome: () => ({
+    summary: null,
+    onRefresh: null,
+    setFeedChrome: vi.fn(),
+    clearFeedChrome: vi.fn(),
+    homeFeedFilter: { kind: "all" as const },
+    setHomeFeedFilter: vi.fn(),
+    homeFeedSearch: "",
+    setHomeFeedSearch: vi.fn(),
+  }),
 }));
 
 type ElementNode = {
@@ -21,6 +35,8 @@ function mockReactState(values: unknown[]) {
     const actual = await importOriginal<typeof import("react")>();
     return {
       ...actual,
+      useCallback: <T extends (...args: unknown[]) => unknown>(fn: T) => fn,
+      useRef: vi.fn((initial: unknown) => ({ current: initial })),
       useEffect: vi.fn((effect: () => void) => effect()),
       useState: vi.fn((initial: unknown) => {
         const setter = vi.fn();
@@ -74,7 +90,7 @@ function itemFixture(overrides: Partial<FeedItem> = {}): FeedItem {
     author: { id: "u1", handle: "fatih", name: "Fatih", image: null, isAgent: false },
     parent: null,
     quotedPost: null,
-    counts: { likes: 0, reposts: 0 },
+    counts: { likes: 0, reposts: 0, replies: 0 },
     viewer: { liked: false, reposted: false },
     ...overrides,
   };
@@ -87,10 +103,18 @@ beforeEach(() => {
 });
 
 describe("Composer interactions", () => {
-  it("submits valid content and refreshes the router", async () => {
+  it("submits valid content and signals feed refetch", async () => {
     const setters = mockReactState(["  hello graph  ", null, false]);
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
+    const dispatchEventSpy = vi.fn(() => true);
+    vi.stubGlobal("window", {
+      dispatchEvent: dispatchEventSpy,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      setInterval: vi.fn(() => 0),
+      clearInterval: vi.fn(),
+    });
     const { Composer } = await import("./Composer");
 
     const form = Composer() as ElementNode;
@@ -107,9 +131,35 @@ describe("Composer interactions", () => {
       body: JSON.stringify({ content: "hello graph" }),
     });
     expect(setters[0]).toHaveBeenCalledWith("");
-    expect(routerRefresh).toHaveBeenCalled();
+    expect(dispatchEventSpy).toHaveBeenCalled();
+    const raw = dispatchEventSpy.mock.calls.at(0)?.at(0);
+    expect(raw).toBeDefined();
+    expect((raw as unknown as Event).type).toBe(FEED_REFETCH_EVENT);
     expect(setters[2]).toHaveBeenNthCalledWith(1, true);
     expect(setters[2]).toHaveBeenLastCalledWith(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("submits reply content with a parentId and custom posted callback", async () => {
+    const onPosted = vi.fn();
+    const setters = mockReactState(["  reply body  ", null, false]);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+    const { Composer } = await import("./Composer");
+
+    const form = Composer({ parentId: "post-1", onPosted }) as ElementNode;
+    await (form.props?.onSubmit as (event: { preventDefault: () => void }) => Promise<void>)({
+      preventDefault: vi.fn(),
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "reply body", parentId: "post-1" }),
+    });
+    expect(setters[0]).toHaveBeenCalledWith("");
+    expect(onPosted).toHaveBeenCalledOnce();
   });
 
   it("surfaces empty, API, and network errors", async () => {
@@ -177,8 +227,20 @@ describe("Composer interactions", () => {
 });
 
 describe("FeedShell interactions", () => {
+  function stubBrowserGlobals() {
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      setInterval: vi.fn(() => 0),
+      clearInterval: vi.fn(),
+      dispatchEvent: vi.fn(),
+    });
+    vi.stubGlobal("document", { visibilityState: "visible" as const });
+  }
+
   it("loads the next feed page and records failures", async () => {
-    let setters = mockReactState([[itemFixture()], "cursor-1", false, null]);
+    stubBrowserGlobals();
+    let setters = mockReactState([[itemFixture()], "cursor-1", false, false, null]);
     let fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ items: [itemFixture({ id: "post-2" })], nextCursor: null }),
@@ -197,14 +259,16 @@ describe("FeedShell interactions", () => {
 
     await (loadMore.props?.onClick as () => Promise<void>)();
     expect(fetchMock).toHaveBeenCalledWith("/api/feed?cursor=cursor-1");
-    expect(setters[2]).toHaveBeenNthCalledWith(1, true);
+    expect(setters[3]).toHaveBeenNthCalledWith(1, true);
     const appendPage = setters[0].mock.calls.at(-1)?.[0] as (prev: FeedItem[]) => FeedItem[];
     expect(appendPage([itemFixture()]).map((item) => item.id)).toEqual(["post-1", "post-2"]);
     expect(setters[1]).toHaveBeenLastCalledWith(null);
-    expect(setters[2]).toHaveBeenLastCalledWith(false);
+    expect(setters[2]).toHaveBeenLastCalledWith(true);
+    expect(setters[3]).toHaveBeenLastCalledWith(false);
 
     vi.resetModules();
-    setters = mockReactState([[itemFixture()], "cursor-1", false, null]);
+    stubBrowserGlobals();
+    setters = mockReactState([[itemFixture()], "cursor-1", false, false, null]);
     fetchMock = vi.fn().mockResolvedValue({ ok: false });
     vi.stubGlobal("fetch", fetchMock);
     const module = await import("./FeedShell");
@@ -217,11 +281,12 @@ describe("FeedShell interactions", () => {
         ?.onClick as () => Promise<void>
     )();
     expect(fetchMock).toHaveBeenCalledWith("/api/feed?cursor=cursor-1");
-    expect(setters[3]).toHaveBeenLastCalledWith("Could not load more posts. Please try again.");
+    expect(setters[4]).toHaveBeenLastCalledWith("Could not load more posts. Please try again.");
   });
 
   it("renders the loading skeleton while a page is pending", async () => {
-    const setters = mockReactState([[itemFixture()], "cursor-1", true, null]);
+    stubBrowserGlobals();
+    const setters = mockReactState([[itemFixture()], "cursor-1", false, true, null]);
     const { FeedShell } = await import("./FeedShell");
 
     const tree = FeedShell({
@@ -229,11 +294,12 @@ describe("FeedShell interactions", () => {
       initialCursor: "cursor-1",
     }) as ElementNode;
     expect(textOf(tree)).toContain("Loading…");
-    expect(setters).toHaveLength(4);
+    expect(setters).toHaveLength(5);
   });
 
   it("handles thrown load-more failures", async () => {
-    const setters = mockReactState([[itemFixture()], "cursor-1", false, null]);
+    stubBrowserGlobals();
+    const setters = mockReactState([[itemFixture()], "cursor-1", false, false, null]);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const { FeedShell } = await import("./FeedShell");
 
@@ -246,13 +312,13 @@ describe("FeedShell interactions", () => {
       requireElement(tree, (node) => node.type === "button" && textOf(node) === "Load more").props
         ?.onClick as () => Promise<void>
     )();
-    expect(setters[3]).toHaveBeenLastCalledWith("Could not load more posts. Please try again.");
+    expect(setters[4]).toHaveBeenLastCalledWith("Could not load more posts. Please try again.");
   });
 });
 
 describe("PostCard interactions", () => {
   it("updates local like state from the API and handles failures", async () => {
-    let setters = mockReactState([false, false, 0, 0, null, null]);
+    let setters = mockReactState([false, false, 0, 0, false, null, null]);
     let fetchMock = vi
       .fn()
       .mockResolvedValue({ ok: true, json: async () => ({ active: true, count: 3 }) });
@@ -270,10 +336,10 @@ describe("PostCard interactions", () => {
     });
     expect(setters[0]).toHaveBeenCalledWith(true);
     expect(setters[2]).toHaveBeenCalledWith(3);
-    expect(setters[4]).toHaveBeenLastCalledWith(null);
+    expect(setters[5]).toHaveBeenLastCalledWith(null);
 
     vi.resetModules();
-    setters = mockReactState([false, false, 0, 0, null, null]);
+    setters = mockReactState([false, false, 0, 0, false, null, null]);
     fetchMock = vi.fn().mockResolvedValue({ ok: false });
     vi.stubGlobal("fetch", fetchMock);
     const module = await import("./PostCard");
@@ -282,11 +348,11 @@ describe("PostCard interactions", () => {
       requireElement(tree, (node) => node.props?.["aria-label"] === "Like post").props
         ?.onClick as () => Promise<void>
     )();
-    expect(setters[5]).toHaveBeenCalledWith("Action failed. Please try again.");
+    expect(setters[6]).toHaveBeenCalledWith("Action failed. Please try again.");
   });
 
   it("updates repost state and handles network errors", async () => {
-    let setters = mockReactState([false, false, 0, 0, null, null]);
+    let setters = mockReactState([false, false, 0, 0, false, null, null]);
     let fetchMock = vi
       .fn()
       .mockResolvedValue({ ok: true, json: async () => ({ active: true, count: 4 }) });
@@ -308,7 +374,7 @@ describe("PostCard interactions", () => {
     expect(setters[3]).toHaveBeenCalledWith(4);
 
     vi.resetModules();
-    setters = mockReactState([false, false, 0, 0, null, null]);
+    setters = mockReactState([false, false, 0, 0, false, null, null]);
     fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
     const module = await import("./PostCard");
@@ -318,7 +384,38 @@ describe("PostCard interactions", () => {
         ?.onClick as () => Promise<void>
     )();
 
-    expect(setters[5]).toHaveBeenCalledWith("Action failed. Please try again.");
+    expect(setters[6]).toHaveBeenCalledWith("Action failed. Please try again.");
+  });
+});
+
+describe("ThreadShell interactions", () => {
+  it("refreshes the thread from the API when the reply composer reports success", async () => {
+    const initial = {
+      parent: null,
+      post: itemFixture({ id: "post-1" }),
+      replies: [],
+    };
+    const refreshed = {
+      ...initial,
+      replies: [itemFixture({ id: "reply-1", kind: "REPLY", content: "reply" })],
+    };
+    const setters = mockReactState([initial, null]);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => refreshed });
+    vi.stubGlobal("fetch", fetchMock);
+    const { ThreadShell } = await import("./ThreadShell");
+
+    const tree = ThreadShell({ initialThread: initial }) as ElementNode;
+    const composer = requireElement(
+      tree,
+      (node) => typeof node.type === "function" && node.type.name === "Composer",
+    );
+    (composer.props?.onPosted as () => void)();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts/post-1/thread");
+    expect(setters[0]).toHaveBeenCalledWith(refreshed);
+    expect(setters[1]).toHaveBeenLastCalledWith(null);
   });
 });
 

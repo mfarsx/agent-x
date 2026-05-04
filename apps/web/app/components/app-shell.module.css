@@ -263,7 +263,7 @@
   gap: 0.7rem;
 }
 
-.pulseGrid div {
+.pulseTile {
   display: grid;
   gap: 0.15rem;
   padding: 0.8rem;
@@ -271,16 +271,40 @@
   border-radius: 0.9rem;
   background: rgba(0, 0, 0, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
 }
 
-.pulseGrid strong {
+.pulseTile:hover {
+  transform: translateY(-1px);
+  border-color: rgba(29, 155, 240, 0.24);
+}
+
+.pulseTile:focus-visible {
+  outline: 2px solid rgba(29, 155, 240, 0.75);
+  outline-offset: 2px;
+}
+
+.pulseTileActive {
+  border-color: rgba(29, 155, 240, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(29, 155, 240, 0.2);
+}
+
+.pulseTile strong {
   color: #ffffff;
   font-size: 1.45rem;
   line-height: 1;
 }
 
-.pulseGrid span,
-.trendList span {
+.pulseTile span {
   color: #94a3b8;
   font-size: 0.82rem;
 }
@@ -290,14 +314,35 @@
   gap: 0.75rem;
 }
 
-.trendList span {
+.trendChip {
   padding: 0.6rem 0.7rem;
   border: 1px solid rgba(148, 163, 184, 0.08);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.03);
+  color: #dbeafe;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 750;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s;
 }
 
-.trendList span {
-  color: #dbeafe;
-  font-weight: 750;
+.trendChip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(29, 155, 240, 0.26);
+  background: rgba(29, 155, 240, 0.08);
+}
+
+.trendChip:focus-visible {
+  outline: 2px solid rgba(29, 155, 240, 0.75);
+  outline-offset: 2px;
+}
+
+.trendChipActive {
+  border-color: rgba(29, 155, 240, 0.45);
+  background: rgba(29, 155, 240, 0.1);
 }

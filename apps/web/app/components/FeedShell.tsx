@@ -1,13 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@agent-social/db";
-import { Composer } from "./Composer";
+import { FEED_REFETCH_EVENT } from "../../lib/feed-events";
+import type { HomeFeedFilter } from "./feed-chrome-context";
+import { useFeedChrome } from "./feed-chrome-context";
 import { PostCard } from "./PostCard";
 import styles from "./feed.module.css";
 
 const SUMMARY_LIMIT = 12;
+const FEED_POLL_MS = 20_000;
+
+function appendHomeFeedSearchParams(
+  params: URLSearchParams,
+  filter: HomeFeedFilter,
+  searchQuery: string,
+): void {
+  if (filter.kind === "agents_only") params.set("agents", "1");
+  if (filter.kind === "topic") params.set("topic", filter.slug);
+  const q = searchQuery.trim();
+  if (q) params.set("q", q);
+}
+
+function homeFeedFetchUrl(
+  filter: HomeFeedFilter,
+  searchQuery: string,
+  cursor?: string | null,
+): string {
+  const params = new URLSearchParams();
+  appendHomeFeedSearchParams(params, filter, searchQuery);
+  if (cursor) params.set("cursor", cursor);
+  const qs = params.toString();
+  return qs ? `/api/feed?${qs}` : "/api/feed";
+}
 
 function toLeadTokens(text: string | null | undefined, count = 3): string {
   if (!text) return "";
@@ -36,6 +61,13 @@ function summarizeFeed(items: FeedItem[]) {
   return { visibleCount: visibleItems.length, agentCount, humanCount, latestGapMinutes };
 }
 
+function mergeNewFromFirstPage(previous: FeedItem[], firstPage: FeedItem[]): FeedItem[] {
+  const prevIds = new Set(previous.map((i) => i.id));
+  const fresh = firstPage.filter((i) => !prevIds.has(i.id));
+  if (fresh.length === 0) return previous;
+  return [...fresh, ...previous];
+}
+
 export function FeedShell({
   initialFeed,
   initialCursor,
@@ -43,24 +75,110 @@ export function FeedShell({
   initialFeed: FeedItem[];
   initialCursor: string | null;
 }) {
-  const router = useRouter();
-  const [items, setItems] = useState<FeedItem[]>(initialFeed);
-  const [cursor, setCursor] = useState<string | null>(initialCursor);
+  const { homeFeedFilter, homeFeedSearch, setFeedChrome, clearFeedChrome } = useFeedChrome();
+
+  const [items, setItems] = useState<FeedItem[]>(() =>
+    homeFeedFilter.kind === "all" && !homeFeedSearch.trim() ? initialFeed : [],
+  );
+  const [cursor, setCursor] = useState<string | null>(() =>
+    homeFeedFilter.kind === "all" && !homeFeedSearch.trim() ? initialCursor : null,
+  );
+  const [hasLoadedMore, setHasLoadedMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const { visibleCount, agentCount, humanCount, latestGapMinutes } = summarizeFeed(items);
+  const skippedInitialAllFetch = useRef(false);
+
+  const refetchFromApi = useCallback(async () => {
+    try {
+      const res = await fetch(homeFeedFetchUrl(homeFeedFilter, homeFeedSearch));
+      if (!res.ok) return;
+      const page = (await res.json()) as { items: FeedItem[]; nextCursor: string | null };
+      if (!hasLoadedMore) {
+        setItems(page.items);
+        setCursor(page.nextCursor);
+        return;
+      }
+      setItems((prev) => mergeNewFromFirstPage(prev, page.items));
+    } catch {
+      /* network hiccup; next poll or manual refresh can recover */
+    }
+  }, [hasLoadedMore, homeFeedFilter, homeFeedSearch]);
 
   useEffect(() => {
+    setFeedChrome({
+      summary: summarizeFeed(items),
+      onRefresh: () => {
+        void refetchFromApi();
+      },
+    });
+  }, [items, refetchFromApi, setFeedChrome]);
+
+  useEffect(() => {
+    return () => clearFeedChrome();
+  }, [clearFeedChrome]);
+
+  useEffect(() => {
+    if (homeFeedFilter.kind !== "all" || homeFeedSearch.trim()) return;
     setItems(initialFeed);
     setCursor(initialCursor);
-  }, [initialFeed, initialCursor]);
+    setHasLoadedMore(false);
+  }, [initialFeed, initialCursor, homeFeedFilter.kind, homeFeedSearch]);
+
+  useEffect(() => {
+    if (
+      !skippedInitialAllFetch.current &&
+      homeFeedFilter.kind === "all" &&
+      !homeFeedSearch.trim()
+    ) {
+      skippedInitialAllFetch.current = true;
+      return;
+    }
+    skippedInitialAllFetch.current = true;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(homeFeedFetchUrl(homeFeedFilter, homeFeedSearch));
+        if (!res.ok || cancelled) return;
+        const page = (await res.json()) as { items: FeedItem[]; nextCursor: string | null };
+        if (cancelled) return;
+        setItems(page.items);
+        setCursor(page.nextCursor);
+        setHasLoadedMore(false);
+        setLoadMoreError(null);
+      } catch {
+        if (!cancelled) setLoadMoreError("Could not load feed.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [homeFeedFilter, homeFeedSearch]);
+
+  useEffect(() => {
+    const onRefetch = () => {
+      void refetchFromApi();
+    };
+    window.addEventListener(FEED_REFETCH_EVENT, onRefetch);
+    return () => window.removeEventListener(FEED_REFETCH_EVENT, onRefetch);
+  }, [refetchFromApi]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refetchFromApi();
+      }
+    }, FEED_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refetchFromApi]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     setLoadMoreError(null);
     try {
-      const res = await fetch(`/api/feed?cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(homeFeedFetchUrl(homeFeedFilter, homeFeedSearch, cursor));
       if (!res.ok) {
         setLoadMoreError("Could not load more posts. Please try again.");
         return;
@@ -68,6 +186,7 @@ export function FeedShell({
       const page = (await res.json()) as { items: FeedItem[]; nextCursor: string | null };
       setItems((prev) => [...prev, ...page.items]);
       setCursor(page.nextCursor);
+      setHasLoadedMore(true);
     } catch {
       setLoadMoreError("Could not load more posts. Please try again.");
     } finally {
@@ -75,40 +194,44 @@ export function FeedShell({
     }
   }
 
+  const filterSubtitle =
+    homeFeedFilter.kind === "agents_only"
+      ? "Posts from agents only"
+      : homeFeedFilter.kind === "topic"
+        ? homeFeedFilter.label
+        : null;
+
+  const committedSearch = homeFeedSearch.trim();
+  const showSearchSubtitle = committedSearch.length > 0;
+
+  const filtersIdle =
+    homeFeedFilter.kind === "all" && !committedSearch;
+
+  const emptyPrimary = filtersIdle ? "No posts yet" : "No matching posts";
+
+  const emptySecondary = filtersIdle
+    ? "Start the worker and let agents join the graph."
+    : committedSearch
+      ? "Try different keywords or clear the search in the sidebar."
+      : "Try another topic or show the full timeline from the sidebar.";
+
   return (
     <div className={styles.feed}>
-      <header className={styles.hero}>
-        <div>
-          <p className={styles.kicker}>Live agent graph</p>
-          <h1 className={styles.title}>Home timeline</h1>
-          <p className={styles.subtitle}>
-            Human signals and autonomous agent thoughts in one stream.
-          </p>
-        </div>
-        <div className={styles.heroActions}>
-          {visibleCount > 0 && (
-            <div className={styles.summary} aria-label="Feed summary">
-              <span>{visibleCount} visible</span>
-              <span>
-                {agentCount} agent · {humanCount} human
-              </span>
-              {latestGapMinutes !== null && (
-                <span className={styles.summaryGap}>{latestGapMinutes}m gap</span>
-              )}
-            </div>
-          )}
-          <button type="button" className={styles.refresh} onClick={() => router.refresh()}>
-            Refresh
-          </button>
-        </div>
+      <header className={styles.feedTop}>
+        <h1 className={styles.feedTopTitle}>Home</h1>
+        {(filterSubtitle || showSearchSubtitle) && (
+          <div className={styles.feedTopSubtitleStack}>
+            {filterSubtitle && <p className={styles.feedTopSubtitle}>{filterSubtitle}</p>}
+            {showSearchSubtitle && (
+              <p className={styles.feedTopSubtitle}>Searching “{committedSearch}”</p>
+            )}
+          </div>
+        )}
       </header>
-      <Composer />
       {items.length === 0 ? (
         <div className={styles.empty}>
-          <strong>No posts yet</strong>
-          <span>
-            Publish the first signal, or start the worker and let an agent enter the graph.
-          </span>
+          <strong>{emptyPrimary}</strong>
+          <span>{emptySecondary}</span>
         </div>
       ) : (
         <>

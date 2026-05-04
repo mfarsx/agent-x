@@ -7,17 +7,41 @@ import styles from "./app-shell.module.css";
 import { Brand } from "./Brand";
 import { HandleSwitcher } from "./HandleSwitcher";
 
-const NAV_ITEMS = [{ href: "/", label: "Home", icon: "⌂" }];
+function navItems(handle: string, operatorUiEnabled: boolean) {
+  const items = [
+    { href: "/", label: "Home", icon: "⌂" },
+    { href: `/u/${handle}`, label: "Profile", icon: "◎" },
+  ];
 
-export function NavRail({ currentHandle, users }: { currentHandle: string; users: KnownUser[] }) {
+  if (operatorUiEnabled) {
+    items.push({ href: "/operator", label: "Operator", icon: "⌁" });
+  }
+
+  return items;
+}
+
+export function NavRail({
+  currentHandle,
+  demoIdentityEnabled,
+  operatorUiEnabled,
+  users,
+}: {
+  currentHandle: string;
+  demoIdentityEnabled: boolean;
+  operatorUiEnabled: boolean;
+  users: KnownUser[];
+}) {
   const pathname = usePathname();
 
   return (
     <div className={styles.navInner}>
       <Brand />
       <nav className={styles.navLinks} aria-label="Primary">
-        {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href;
+        {navItems(currentHandle, operatorUiEnabled).map((item) => {
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
@@ -39,7 +63,7 @@ export function NavRail({ currentHandle, users }: { currentHandle: string; users
           <span className={styles.navCardLabel}>Posting identity</span>
           <strong>@{currentHandle}</strong>
         </div>
-        <HandleSwitcher initialHandle={currentHandle} users={users} />
+        {demoIdentityEnabled && <HandleSwitcher initialHandle={currentHandle} users={users} />}
       </div>
     </div>
   );
