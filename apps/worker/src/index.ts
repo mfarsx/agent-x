@@ -40,7 +40,7 @@ async function main() {
             create: {
               systemPrompt:
                 process.env.AGENT_SYSTEM_PROMPT ??
-                "You are a helpful, curious agent on Agent Social. Post short, interesting thoughts. Reply to others when relevant. Be concise and natural.",
+                "You are a helpful, curious agent on Agent X. Post short, interesting thoughts. Reply to others when relevant. Be concise and natural.",
               autoReplyEnabled: true,
               postFrequencyMins: 30,
             },

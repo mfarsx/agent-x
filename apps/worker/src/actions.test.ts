@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@agent-social/db", () => ({
   db: {
-    post: { findMany: vi.fn(), create: vi.fn() },
+    post: { count: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   },
 }));
 
@@ -27,7 +27,11 @@ import { addMemory, getRelevantMemories } from "./memory.js";
 import { ollamaChat } from "./ollama.js";
 
 type DbMock = {
-  post: { findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  post: {
+    count: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+  };
 };
 
 const dbMock = db as unknown as DbMock;
@@ -42,8 +46,16 @@ const originalEnv = { ...process.env };
 beforeEach(() => {
   process.env = { ...originalEnv };
   vi.clearAllMocks();
+  dbMock.post.count.mockReset();
+  dbMock.post.findMany.mockReset();
+  dbMock.post.create.mockReset();
+  vi.mocked(logAction).mockReset();
+  vi.mocked(addMemory).mockReset();
+  vi.mocked(getRelevantMemories).mockReset();
+  vi.mocked(ollamaChat).mockReset();
   vi.spyOn(console, "log").mockImplementation(() => undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
+  dbMock.post.count.mockResolvedValue(0);
   vi.mocked(getRelevantMemories).mockResolvedValue("");
   vi.mocked(ollamaChat).mockResolvedValue("fresh generated post");
 });
@@ -67,6 +79,44 @@ describe("doPost", () => {
       null,
       "dry_run",
       expect.objectContaining({ content: "fresh generated post" }),
+      null,
+    );
+  });
+
+  it("skips posts when quota is reached", async () => {
+    process.env.WORKER_MAX_POSTS_PER_WINDOW = "1";
+    dbMock.post.count.mockResolvedValue(1);
+    dbMock.post.findMany.mockResolvedValue([]);
+
+    await doPost(baseOptions);
+
+    expect(dbMock.post.create).not.toHaveBeenCalled();
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "post",
+      null,
+      null,
+      "skipped_quota",
+      expect.objectContaining({ quota: expect.objectContaining({ count: 1, max: 1 }) }),
+      null,
+    );
+  });
+
+  it("skips posts that trip the duplicate guard", async () => {
+    dbMock.post.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ content: "fresh generated post" }]);
+
+    await doPost(baseOptions);
+
+    expect(dbMock.post.create).not.toHaveBeenCalled();
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "post",
+      null,
+      null,
+      "skipped_duplicate",
+      expect.objectContaining({ duplicate: expect.objectContaining({ duplicateRisk: true }) }),
       null,
     );
   });
@@ -158,7 +208,15 @@ describe("doReply", () => {
 
     expect(ollamaChat).not.toHaveBeenCalled();
     expect(dbMock.post.create).not.toHaveBeenCalled();
-    expect(logAction).not.toHaveBeenCalled();
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "reply",
+      null,
+      null,
+      "skipped_no_candidate",
+      {},
+      null,
+    );
   });
 
   it("creates and logs a reply for an eligible human question", async () => {
@@ -173,6 +231,7 @@ describe("doReply", () => {
           replies: [],
         },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     dbMock.post.create.mockResolvedValue({ id: "reply-1" });
@@ -214,6 +273,7 @@ describe("doReply", () => {
         },
       ])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     dbMock.post.create.mockResolvedValue({ id: "reply-2" });
     vi.mocked(ollamaChat).mockResolvedValue(rawReply);
@@ -243,7 +303,8 @@ describe("doReply", () => {
         },
       ])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ author: { handle: "ada" }, content: "Earlier reply" }]);
+      .mockResolvedValueOnce([{ author: { handle: "ada" }, content: "Earlier reply" }])
+      .mockResolvedValueOnce([]);
     vi.mocked(getRelevantMemories).mockResolvedValue("Remember context");
     vi.mocked(ollamaChat).mockResolvedValue("Dry reply");
 
@@ -274,6 +335,7 @@ describe("doReply", () => {
         },
       ])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     vi.mocked(ollamaChat).mockResolvedValue("   ");
 
@@ -296,6 +358,7 @@ describe("doReply", () => {
           replies: [],
         },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     dbMock.post.create.mockResolvedValue({ id: "reply-3" });
@@ -328,6 +391,38 @@ describe("doReply", () => {
       {},
       null,
       "reply db down",
+    );
+  });
+
+  it("skips replies when quota is reached", async () => {
+    process.env.WORKER_MAX_REPLIES_PER_WINDOW = "1";
+    dbMock.post.count.mockResolvedValue(1);
+    dbMock.post.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "post-1",
+          authorId: "human-1",
+          content: "How now?",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          author: { handle: "fatih", name: "Fatih", isAgent: false },
+          replies: [],
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    vi.mocked(ollamaChat).mockResolvedValue("A quota-aware reply.");
+
+    await doReply({ ...baseOptions, dryRun: false });
+
+    expect(dbMock.post.create).not.toHaveBeenCalled();
+    expect(logAction).toHaveBeenCalledWith(
+      "agent-1",
+      "reply",
+      "post",
+      "post-1",
+      "skipped_quota",
+      expect.objectContaining({ quota: expect.objectContaining({ count: 1, max: 1 }) }),
+      null,
     );
   });
 });

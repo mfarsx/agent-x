@@ -4,6 +4,8 @@ import { containsOverusedTerms, isTooSimilarToRecent, sanitize } from "./content
 import { addMemory, getRelevantMemories } from "./memory.js";
 import { ollamaChat } from "./ollama.js";
 import { buildPostPrompt, extractOverusedTerms, pickTopicForAgent } from "./topics.js";
+import { isActionOverQuota, isDuplicateStormRisk } from "./governance.js";
+import { CandidatePost, pickReplyCandidate } from "./reply-candidates.js";
 
 type AgentActionOptions = {
   agentId: string;
@@ -20,23 +22,6 @@ type ReplyBehaviorOptions = {
 
 type RecentPost = {
   content: string | null;
-};
-
-type CandidatePost = {
-  id: string;
-  authorId: string;
-  content: string | null;
-  createdAt: Date;
-  author: {
-    handle: string | null;
-    name: string | null;
-    isAgent: boolean;
-  };
-  replies: Array<{
-    authorId: string;
-    content: string | null;
-    createdAt?: Date;
-  }>;
 };
 
 type RecentReply = {
@@ -61,27 +46,6 @@ function pickFallbackPost(topic: string): string {
   ];
   const template = templates[Math.floor(Math.random() * templates.length)];
   return template(topic).slice(0, 280);
-}
-
-function weightedPick<T>(items: Array<{ item: T; weight: number }>): T | null {
-  const eligible = items.filter((entry) => entry.weight > 0);
-  if (eligible.length === 0) return null;
-  const total = eligible.reduce((acc, entry) => acc + entry.weight, 0);
-  let roll = Math.random() * total;
-  for (const entry of eligible) {
-    roll -= entry.weight;
-    if (roll <= 0) return entry.item;
-  }
-  return eligible[eligible.length - 1]?.item ?? null;
-}
-
-function looksLikeQuestion(content: string | null): boolean {
-  if (!content) return false;
-  const trimmed = content.trim();
-  return (
-    /\?/.test(trimmed) ||
-    /^(who|what|when|where|why|how|is|are|do|does|did|can|should|would)\b/i.test(trimmed)
-  );
 }
 
 export async function doPost({ agentId, agentHandle, systemPrompt, dryRun }: AgentActionOptions) {
@@ -129,6 +93,30 @@ export async function doPost({ agentId, agentHandle, systemPrompt, dryRun }: Age
 
     if (!content) {
       content = pickFallbackPost(selectedTopic);
+    }
+
+    const quota = await isActionOverQuota(agentId, "POST");
+    if (quota.overQuota) {
+      await logAction(agentId, "post", null, null, "skipped_quota", { content, quota }, null);
+      console.log(
+        `[${new Date().toISOString()}] Post skipped by quota (${quota.count}/${quota.max})`,
+      );
+      return;
+    }
+
+    const duplicate = await isDuplicateStormRisk(agentId, content);
+    if (duplicate.duplicateRisk) {
+      await logAction(
+        agentId,
+        "post",
+        null,
+        null,
+        "skipped_duplicate",
+        { content, duplicate },
+        null,
+      );
+      console.log(`[${new Date().toISOString()}] Post skipped by duplicate guard`);
+      return;
     }
 
     if (dryRun) {
@@ -219,28 +207,16 @@ export async function doReply(
     });
     const repliedRecently = recentOwnReplies.length > 0;
 
-    const scoredCandidates = candidates
-      .filter((post: CandidatePost) => {
-        if (post.author.isAgent && !includeAgentPosts) return false;
-        if (!post.author.isAgent && !includeHumanPosts) return false;
-        if (post.authorId === agentId) return false;
-        return !post.replies.some((reply) => reply.authorId === agentId);
-      })
-      .map((post) => {
-        let score = 0;
-        if (!post.author.isAgent) score += 3;
-        if (post.author.isAgent) score -= 2;
-        if (looksLikeQuestion(post.content)) score += 2;
-        if (post.replies.length >= 2) score -= 3;
-        if (repliedRecently) score -= 2;
-        return { post, score };
-      })
-      .filter((entry) => entry.score > 0);
-
-    const selectedPost = weightedPick(
-      scoredCandidates.map((entry) => ({ item: entry.post, weight: entry.score })),
-    );
-    if (!selectedPost) return;
+    const selectedPost = pickReplyCandidate(candidates, {
+      agentId,
+      includeAgentPosts,
+      includeHumanPosts,
+      repliedRecently,
+    });
+    if (!selectedPost) {
+      await logAction(agentId, "reply", null, null, "skipped_no_candidate", {}, null);
+      return;
+    }
     const post = selectedPost;
 
     const recentReplies = (await db.post.findMany({
@@ -272,6 +248,38 @@ export async function doReply(
     const content = sanitize(reply, 200);
 
     if (!content) return;
+
+    const quota = await isActionOverQuota(agentId, "REPLY");
+    if (quota.overQuota) {
+      await logAction(
+        agentId,
+        "reply",
+        "post",
+        post.id,
+        "skipped_quota",
+        { parentPostId: post.id, content, quota },
+        null,
+      );
+      console.log(
+        `[${new Date().toISOString()}] Reply skipped by quota (${quota.count}/${quota.max})`,
+      );
+      return;
+    }
+
+    const duplicate = await isDuplicateStormRisk(agentId, content);
+    if (duplicate.duplicateRisk) {
+      await logAction(
+        agentId,
+        "reply",
+        "post",
+        post.id,
+        "skipped_duplicate",
+        { parentPostId: post.id, content, duplicate },
+        null,
+      );
+      console.log(`[${new Date().toISOString()}] Reply skipped by duplicate guard`);
+      return;
+    }
 
     if (dryRun) {
       await logAction(
