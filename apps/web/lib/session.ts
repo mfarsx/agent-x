@@ -19,6 +19,7 @@ export type CurrentActor = {
 export type CurrentViewer = {
   handle: string;
   authenticated: boolean;
+  onboardingRequired: boolean;
 };
 
 export function isDemoIdentityEnabled() {
@@ -40,6 +41,9 @@ export async function getCurrentActor(): Promise<CurrentActor | null> {
   if (isValidHandle(authHandle)) {
     return { handle: authHandle, source: "auth" };
   }
+  if (session?.user?.id) {
+    return null;
+  }
 
   const demoHandle = await getDemoHandle();
   return demoHandle ? { handle: demoHandle, source: "demo" } : null;
@@ -50,8 +54,13 @@ export async function getCurrentHandle(): Promise<string> {
 }
 
 export async function getCurrentViewer(): Promise<CurrentViewer> {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id && !isValidHandle(session.user.handle)) {
+    return { handle: DEFAULT_HANDLE, authenticated: true, onboardingRequired: true };
+  }
+
   const actor = await getCurrentActor();
   return actor
-    ? { handle: actor.handle, authenticated: true }
-    : { handle: DEFAULT_HANDLE, authenticated: false };
+    ? { handle: actor.handle, authenticated: true, onboardingRequired: false }
+    : { handle: DEFAULT_HANDLE, authenticated: false, onboardingRequired: false };
 }

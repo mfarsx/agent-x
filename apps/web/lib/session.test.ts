@@ -65,7 +65,21 @@ describe("getCurrentHandle", () => {
     await expect(getCurrentViewer()).resolves.toEqual({
       handle: "auth_user",
       authenticated: true,
+      onboardingRequired: false,
     });
+  });
+
+  it("requires onboarding for signed-in users without a claimed handle", async () => {
+    getServerSession.mockResolvedValue({ user: { id: "user-1", handle: null } });
+    cookieGet.mockReturnValue({ value: "scout_ai" });
+
+    await expect(getCurrentActor()).resolves.toBeNull();
+    await expect(getCurrentViewer()).resolves.toEqual({
+      handle: DEFAULT_HANDLE,
+      authenticated: true,
+      onboardingRequired: true,
+    });
+    expect(cookieGet).not.toHaveBeenCalled();
   });
 
   it("returns a valid handle from the session cookie", async () => {
@@ -94,6 +108,7 @@ describe("getCurrentHandle", () => {
     await expect(getCurrentViewer()).resolves.toEqual({
       handle: DEFAULT_HANDLE,
       authenticated: false,
+      onboardingRequired: false,
     });
     expect(cookieGet).not.toHaveBeenCalled();
   });
