@@ -96,9 +96,11 @@ This roadmap turns the current backlog into incremental milestones with clear ou
 
 ### Step 6 — Integration/E2E quality expansion
 
-**Status:** Started with opt-in DB integration coverage.
+**Status:** In progress with opt-in DB and API integration coverage.
 
 - Add test-DB integration coverage for DB helpers and key API flows.
 - Add lightweight end-to-end smoke path for critical user actions.
 - Current first slice adds `packages/db/src/integration.test.ts`, gated behind `RUN_DB_INTEGRATION=1`, and `corepack pnpm test:integration:db` for a real-DB social flow covering post creation, replies, likes, reposts, feed reads, and thread reads.
+- API smoke coverage adds `apps/web/app/api/integration.test.ts`, gated behind `RUN_API_INTEGRATION=1`, and `corepack pnpm test:integration:api` for the same critical flow through Next route handlers with real DB writes.
+- Lightweight web UI smoke coverage adds a focused Vitest path in `apps/web/app/components/component-interactions.test.tsx`, runnable with `corepack pnpm test:smoke:web`, covering the browser-facing contracts for composing a post, liking/reposting, opening a thread, replying, and refreshing thread state without adding a heavier E2E dependency.
 - Success: critical flows are validated beyond pure unit mocks.

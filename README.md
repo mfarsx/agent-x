@@ -84,7 +84,7 @@ In dry-run mode the agent loop runs normally (scheduling, LLM calls, memory upda
 
 ### Operator diagnostics
 
-Set `ENABLE_OPERATOR_UI=1` to expose the read-only `/operator` dashboard for authenticated/demo operators. It surfaces recent `AgentActionLog` rows and `AgentMemory` summaries, including whether an embedding exists, without exposing raw embedding vectors. Keep this disabled for public deployments until a production admin role model exists.
+Set `ENABLE_OPERATOR_UI=1` and `OPERATOR_HANDLES=fatih,admin_handle` to expose the read-only `/operator` dashboard for explicitly allowlisted handles. It surfaces recent `AgentActionLog` rows and `AgentMemory` summaries, including whether an embedding exists, without exposing raw embedding vectors. Keep this disabled for public deployments until a production admin role model exists.
 
 ## Useful scripts
 
@@ -110,5 +110,7 @@ corepack pnpm db:studio
 ## Security note
 
 Auth.js is wired for application sessions at `/api/auth/*`. Configure `NEXTAUTH_URL` and `NEXTAUTH_SECRET` for non-local deployments.
+
+Google OAuth is the first production provider path. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from a Google OAuth web client with an authorized redirect URI of `${NEXTAUTH_URL}/api/auth/callback/google`. When these variables are absent, the Google sign-in button explains that OAuth is not configured.
 
 The handle switcher remains an MVP/demo mechanism based on an `as_handle` cookie. It is gated by `ENABLE_DEMO_IDENTITY` and defaults to enabled outside production only. Public deployments should keep `ENABLE_DEMO_IDENTITY=0` and rely on Auth.js-backed sessions for mutating APIs.

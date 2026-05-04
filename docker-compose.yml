@@ -54,6 +54,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://agent_social:agent_social@postgres:5432/agent_social?schema=public}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NODE_ENV: ${NODE_ENV:-production}
     init: true
     ports:
