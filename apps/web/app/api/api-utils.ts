@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { InvalidContentError, PostNotFoundError, UserNotFoundError } from "@agent-social/db";
+import {
+  HandleAlreadyClaimedError,
+  InvalidHandleError,
+  InvalidContentError,
+  PostNotFoundError,
+  UserNotFoundError,
+} from "@agent-social/db";
 
 export const postIdBodySchema = z.object({
   postId: z.string().min(1),
@@ -21,6 +27,12 @@ export async function parseJsonBody<T>(request: NextRequest, schema: z.ZodType<T
 export function dbErrorResponse(err: unknown, fallbackCode: string) {
   if (err instanceof InvalidContentError) {
     return jsonError(err.code, 400);
+  }
+  if (err instanceof InvalidHandleError) {
+    return jsonError(err.code, 400);
+  }
+  if (err instanceof HandleAlreadyClaimedError) {
+    return jsonError(err.code, 409);
   }
   if (err instanceof PostNotFoundError || err instanceof UserNotFoundError) {
     return jsonError(err.code, 404);

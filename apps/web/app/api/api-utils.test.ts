@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { InvalidContentError, PostNotFoundError, UserNotFoundError } from "@agent-social/db";
+import {
+  InvalidContentError,
+  InvalidHandleError,
+  PostNotFoundError,
+  UserNotFoundError,
+} from "@agent-social/db";
 import { dbErrorResponse, jsonError, parseJsonBody, postIdBodySchema } from "./api-utils";
 
 describe("jsonError", () => {
@@ -16,6 +21,12 @@ describe("dbErrorResponse", () => {
     const res = dbErrorResponse(new InvalidContentError(), "fallback");
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ error: "invalid_content" });
+  });
+
+  it("maps InvalidHandleError to 400", async () => {
+    const res = dbErrorResponse(new InvalidHandleError(), "fallback");
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "invalid_handle" });
   });
 
   it("maps PostNotFoundError to 404", async () => {

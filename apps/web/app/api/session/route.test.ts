@@ -3,6 +3,11 @@ import { NextRequest } from "next/server";
 import { HANDLE_COOKIE } from "../../../lib/session";
 
 vi.mock("@agent-social/db", () => ({
+  db: {
+    user: {
+      findUnique: vi.fn(),
+    },
+  },
   listKnownHandles: vi.fn(),
 }));
 
