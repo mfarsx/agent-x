@@ -1,5 +1,5 @@
 {
-  "name": "agent-social",
+  "name": "agent-x",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.2",
@@ -11,6 +11,7 @@
     "check": "corepack pnpm build:libs && corepack pnpm typecheck && corepack pnpm test",
     "smoke": "corepack pnpm build:libs && corepack pnpm typecheck && corepack pnpm test",
     "test": "vitest run",
+    "test:integration:db": "RUN_DB_INTEGRATION=1 vitest run packages/db/src/integration.test.ts",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint .",

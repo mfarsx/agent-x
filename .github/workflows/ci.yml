@@ -26,6 +26,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://agent_social:agent_social@localhost:5432/agent_social?schema=public
+      # Until Node 24 is the default for JS actions (see GitHub Actions changelog).
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
