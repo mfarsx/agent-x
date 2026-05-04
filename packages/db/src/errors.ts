@@ -5,6 +5,20 @@ export class UserNotFoundError extends Error {
   }
 }
 
+export class HandleAlreadyClaimedError extends Error {
+  readonly code = "handle_already_claimed";
+  constructor(handle: string) {
+    super(`handle already claimed: ${handle}`);
+  }
+}
+
+export class InvalidHandleError extends Error {
+  readonly code = "invalid_handle";
+  constructor() {
+    super("handle must be 1-32 letters, numbers, or underscores");
+  }
+}
+
 export class PostNotFoundError extends Error {
   readonly code = "post_not_found";
   constructor(postId?: string) {
