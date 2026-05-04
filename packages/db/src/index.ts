@@ -1,8 +1,12 @@
 export { db } from "./client";
-export { getLatestFeed } from "./feed";
-export type { FeedItem, FeedPage, FeedOptions } from "./feed";
-export { createPostAsHandle, toggleLike, toggleRepost } from "./post";
+export { getLatestFeed, getProfileFeed, getThread } from "./feed";
+export type { FeedItem, FeedPage, FeedOptions, ThreadView } from "./feed";
+export { getPublicProfile, getProfileActivity } from "./profile";
+export type { PublicProfile, ProfileActivity } from "./profile";
+export { createPostAsHandle, createReplyAsHandle, toggleLike, toggleRepost } from "./post";
 export type { CreatedPost, ToggleResult } from "./post";
-export { listKnownHandles } from "./users";
+export { getOperatorDashboard, listAgentActionLogs, listAgentMemories } from "./operator";
+export type { AgentActionLogSummary, AgentMemorySummary, OperatorDashboard } from "./operator";
+export { isValidHandle, listKnownHandles } from "./users";
 export type { KnownUser } from "./users";
 export { UserNotFoundError, PostNotFoundError, InvalidContentError } from "./errors";

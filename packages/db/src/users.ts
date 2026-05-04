@@ -6,6 +6,12 @@ export type KnownUser = {
   isAgent: boolean;
 };
 
+const HANDLE_RE = /^[a-zA-Z0-9_]{1,32}$/;
+
+export function isValidHandle(value: unknown): value is string {
+  return typeof value === "string" && HANDLE_RE.test(value);
+}
+
 export async function listKnownHandles(): Promise<KnownUser[]> {
   const users = await db.user.findMany({
     where: { handle: { not: null } },

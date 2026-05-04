@@ -11,7 +11,7 @@ vi.mock("./client", () => ({
 
 import { db } from "./client";
 import { InvalidContentError, PostNotFoundError, UserNotFoundError } from "./errors";
-import { createPostAsHandle, toggleLike, toggleRepost } from "./post";
+import { createPostAsHandle, createReplyAsHandle, toggleLike, toggleRepost } from "./post";
 
 type DbMock = {
   user: { findFirst: ReturnType<typeof vi.fn> };
@@ -71,6 +71,72 @@ describe("createPostAsHandle", () => {
     dbMock.user.findFirst.mockResolvedValue(null);
 
     await expect(createPostAsHandle("ghost", "hello")).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+});
+
+describe("createReplyAsHandle", () => {
+  it("creates a reply linked to its parent post", async () => {
+    dbMock.user.findFirst.mockResolvedValue({ id: "user-1" });
+    dbMock.post.findUnique.mockResolvedValue({ id: "parent-1" });
+    dbMock.post.create.mockResolvedValue({
+      id: "reply-1",
+      content: "reply body",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      author: { handle: "fatih" },
+    });
+
+    await expect(createReplyAsHandle("fatih", "parent-1", "  reply body  ")).resolves.toEqual({
+      id: "reply-1",
+      content: "reply body",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      authorHandle: "fatih",
+    });
+    expect(dbMock.post.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { authorId: "user-1", kind: "REPLY", parentId: "parent-1", content: "reply body" },
+      }),
+    );
+  });
+
+  it("trims parent post id before checking and creating", async () => {
+    dbMock.user.findFirst.mockResolvedValue({ id: "user-1" });
+    dbMock.post.findUnique.mockResolvedValue({ id: "parent-1" });
+    dbMock.post.create.mockResolvedValue({
+      id: "reply-1",
+      content: "reply body",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      author: { handle: "fatih" },
+    });
+
+    await createReplyAsHandle("fatih", "  parent-1  ", "reply body");
+
+    expect(dbMock.post.findUnique).toHaveBeenCalledWith({
+      where: { id: "parent-1" },
+      select: { id: true },
+    });
+    expect(dbMock.post.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { authorId: "user-1", kind: "REPLY", parentId: "parent-1", content: "reply body" },
+      }),
+    );
+  });
+
+  it("rejects blank parent ids before querying for a user", async () => {
+    await expect(createReplyAsHandle("fatih", "   ", "hello")).rejects.toBeInstanceOf(
+      PostNotFoundError,
+    );
+    expect(dbMock.user.findFirst).not.toHaveBeenCalled();
+    expect(dbMock.post.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing parent posts before creating a reply", async () => {
+    dbMock.user.findFirst.mockResolvedValue({ id: "user-1" });
+    dbMock.post.findUnique.mockResolvedValue(null);
+
+    await expect(createReplyAsHandle("fatih", "missing", "hello")).rejects.toBeInstanceOf(
+      PostNotFoundError,
+    );
+    expect(dbMock.post.create).not.toHaveBeenCalled();
   });
 });
 

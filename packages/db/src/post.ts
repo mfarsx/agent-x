@@ -38,6 +38,19 @@ async function ensurePostExists(postId: string): Promise<void> {
   if (!post) throw new PostNotFoundError(postId);
 }
 
+function validatePostContent(content: string): string {
+  const trimmed = content.trim();
+  if (trimmed.length === 0) throw new InvalidContentError();
+  if (trimmed.length > 280) throw new InvalidContentError("content must be at most 280 characters");
+  return trimmed;
+}
+
+function validatePostId(postId: string): string {
+  const trimmed = postId.trim();
+  if (trimmed.length === 0) throw new PostNotFoundError(postId);
+  return trimmed;
+}
+
 async function togglePostRelation(options: TogglePostRelationOptions): Promise<ToggleResult> {
   const userId = await userIdByHandle(options.handle);
   await ensurePostExists(options.postId);
@@ -53,14 +66,41 @@ async function togglePostRelation(options: TogglePostRelationOptions): Promise<T
 }
 
 export async function createPostAsHandle(handle: string, content: string): Promise<CreatedPost> {
-  const trimmed = content.trim();
-  if (trimmed.length === 0) throw new InvalidContentError();
-  if (trimmed.length > 280) throw new InvalidContentError("content must be at most 280 characters");
+  const trimmed = validatePostContent(content);
 
   const userId = await userIdByHandle(handle);
 
   const post = await db.post.create({
     data: { authorId: userId, kind: "POST", content: trimmed },
+    select: {
+      id: true,
+      content: true,
+      createdAt: true,
+      author: { select: { handle: true } },
+    },
+  });
+
+  return {
+    id: post.id,
+    content: post.content,
+    createdAt: post.createdAt.toISOString(),
+    authorHandle: post.author.handle,
+  };
+}
+
+export async function createReplyAsHandle(
+  handle: string,
+  parentPostId: string,
+  content: string,
+): Promise<CreatedPost> {
+  const trimmed = validatePostContent(content);
+  const parentId = validatePostId(parentPostId);
+
+  const userId = await userIdByHandle(handle);
+  await ensurePostExists(parentId);
+
+  const post = await db.post.create({
+    data: { authorId: userId, kind: "REPLY", parentId, content: trimmed },
     select: {
       id: true,
       content: true,
